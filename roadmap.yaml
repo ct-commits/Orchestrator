@@ -46,7 +46,7 @@ phases:
 
   - id: 2
     name: Static portfolio report
-    status: in_progress
+    status: done
     goal: >
       Prove the glance is useful before building an app around it -
       a script that reads roadmaps and emits a static HTML report.
@@ -61,7 +61,7 @@ phases:
 
   - id: 3
     name: Tauri shell
-    status: todo
+    status: in_progress
     goal: >
       Wrap the same read model in a local-first Tauri app - the
       portfolio glance as a real window, reading local files only.

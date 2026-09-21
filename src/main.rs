@@ -154,8 +154,7 @@ fn load_repo(repo_path: &str) -> Result<(String, Roadmap), String> {
 }
 
 fn open_registry() -> Result<rusqlite::Connection, String> {
-    let path = std::env::var("ORCHESTRATOR_DB").unwrap_or_else(|_| "orchestrator.db".into());
-    registry::open(path).map_err(|e| e.to_string())
+    orchestrator::open_default_registry().map_err(|e| e.to_string())
 }
 
 fn parse_out_flag(args: &[String]) -> Result<Option<PathBuf>, String> {
