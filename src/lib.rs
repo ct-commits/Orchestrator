@@ -12,6 +12,7 @@
 //! # Ok::<(), orchestrator::parser::Error>(())
 //! ```
 
+pub mod ingest;
 pub mod model;
 pub mod parser;
 pub mod registry;

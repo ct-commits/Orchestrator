@@ -61,7 +61,7 @@ phases:
 
   - id: 3
     name: Tauri shell
-    status: in_progress
+    status: done
     goal: >
       Wrap the same read model in a local-first Tauri app - the
       portfolio glance as a real window, reading local files only.
@@ -76,7 +76,7 @@ phases:
 
   - id: 4
     name: Git & GitHub ingestion
-    status: todo
+    status: in_progress
     goal: >
       The per-project summary page - merged PRs, resolved blockers,
       repo link - pulled from the git host and cached locally.
