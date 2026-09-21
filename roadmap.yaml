@@ -68,7 +68,7 @@ phases:
     tasks:
       - Tauri shell with the project list drawn from the registry
       - Feed the Phase-1 parser into the UI (progress bar, phase status, maturity)
-      - "Add project" = point the tool at a repo path
+      - '"Add project" = point the tool at a repo path'
     exit_criteria: >
       The app launches and shows every registered project with an
       accurate progress bar and phase list, reading only local
