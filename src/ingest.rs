@@ -1,6 +1,7 @@
-//! Ingest delivery history — merged PRs, open PRs, and last activity from
-//! GitHub (via the `gh` CLI, reusing the user's existing auth), with a
-//! `git log` fallback for local-only repos.
+//! Ingest delivery history — merged PRs, open PRs, recent commits, and last
+//! activity from GitHub (via the `gh` CLI, reusing the user's existing
+//! auth), with a `git log` fallback for local-only repos. Recent commits
+//! mean repos that push straight to `main` (no PRs) still show real work.
 //!
 //! This is *ingestion*, not orchestration: it runs only when explicitly
 //! invoked (the `ingest` CLI command) and writes a cached summary to the
@@ -99,6 +100,38 @@ pub fn parse_prs(json: &str) -> Result<Vec<PrRef>, Error> {
         .collect())
 }
 
+// GitHub's commits API shape (the subset we use).
+#[derive(Deserialize)]
+struct GhCommitEntry {
+    sha: String,
+    commit: GhCommitInner,
+}
+#[derive(Deserialize)]
+struct GhCommitInner {
+    message: String,
+    committer: GhCommitWho,
+}
+#[derive(Deserialize)]
+struct GhCommitWho {
+    date: String,
+}
+
+/// Parse `gh api repos/{repo}/commits` into recent commits.
+pub fn parse_gh_commits(json: &str) -> Result<Vec<CommitRef>, Error> {
+    let raw: Vec<GhCommitEntry> = serde_json::from_str(json).map_err(|source| Error::Json {
+        tool: "gh".into(),
+        source,
+    })?;
+    Ok(raw
+        .into_iter()
+        .map(|e| CommitRef {
+            hash: e.sha.chars().take(9).collect(),
+            subject: e.commit.message.lines().next().unwrap_or("").to_string(),
+            date: e.commit.committer.date.chars().take(10).collect(), // YYYY-MM-DD
+        })
+        .collect())
+}
+
 /// Parse `git log --pretty=format:%H%x1f%s%x1f%cs` (fields unit-separated).
 pub fn parse_git_log(text: &str) -> Vec<CommitRef> {
     text.lines()
@@ -153,6 +186,12 @@ fn gh_prs(repo: &str, state: &str) -> Result<Vec<PrRef>, Error> {
     parse_prs(&json)
 }
 
+/// Recent commits on the repo's default branch, via the GitHub API.
+fn gh_recent_commits(repo: &str) -> Result<Vec<CommitRef>, Error> {
+    let json = run("gh", &["api", &format!("repos/{repo}/commits?per_page=20")])?;
+    parse_gh_commits(&json)
+}
+
 /// The repo's last push time (ISO-8601), via `gh repo view`.
 fn gh_last_activity(repo: &str) -> Option<String> {
     let out = run(
@@ -201,7 +240,9 @@ pub fn ingest_project(repo: Option<&str>, repo_path: &str, repo_url: Option<Stri
                     merged_prs: merged_prs.clone(),
                     open_prs: open_prs.clone(),
                     last_activity: gh_last_activity(repo),
-                    commits: Vec::new(),
+                    // Also show recent commits — repos that push straight to
+                    // main (no PRs) still surface their real work.
+                    commits: gh_recent_commits(repo).unwrap_or_default(),
                     fetched_at,
                     note: None,
                 };

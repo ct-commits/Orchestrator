@@ -80,8 +80,10 @@ cargo run -- report --out report.html
 Projects can also be removed from the desktop app (open a project → Remove
 from portfolio).
 
-Ingest delivery history (merged PRs / resolved blockers via `gh`) and a
-CodeBurn cost export (Settings → Export → JSON) into the local cache:
+Ingest delivery history (merged/open PRs, recent commits, last activity
+via `gh`) and a CodeBurn cost export (Settings → Export → JSON) into the
+local cache. Recent commits mean repos that push straight to `main`
+(no PRs) still show their real work:
 
 ```bash
 cargo run -- ingest

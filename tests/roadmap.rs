@@ -308,6 +308,20 @@ fn parses_open_prs_with_null_merged_at() {
 }
 
 #[test]
+fn parses_github_commits_api() {
+    use orchestrator::ingest;
+    let json = r#"[
+      {"sha": "abcdef1234567890", "commit": {"message": "Create enrollments during participant assignment\n\nbody", "committer": {"date": "2026-09-18T10:00:00Z"}}},
+      {"sha": "0011223344556677", "commit": {"message": "Add enrollment-based participant access", "committer": {"date": "2026-09-18T09:00:00Z"}}}
+    ]"#;
+    let commits = ingest::parse_gh_commits(json).unwrap();
+    assert_eq!(commits.len(), 2);
+    assert_eq!(commits[0].hash, "abcdef123"); // truncated to 9
+    assert_eq!(commits[0].subject, "Create enrollments during participant assignment"); // first line only
+    assert_eq!(commits[0].date, "2026-09-18"); // date only
+}
+
+#[test]
 fn parses_git_log_unit_separated() {
     use orchestrator::ingest;
     // hash \x1f subject \x1f date, one commit per line

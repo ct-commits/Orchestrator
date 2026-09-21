@@ -251,14 +251,16 @@
                 {/each}
               </ul>
             {/if}
-          {:else if delivery.source === "git"}
+          {/if}
+
+          {#if delivery.commits.length > 0}
             <h4>Recent commits ({delivery.commits.length})</h4>
             <ul class="commits">
               {#each delivery.commits as c (c.hash)}
                 <li><code>{c.hash}</code> {c.subject} <span class="muted">{c.date}</span></li>
               {/each}
             </ul>
-          {:else}
+          {:else if delivery.source === "none"}
             <p class="muted">No delivery data available.</p>
           {/if}
         {/if}
