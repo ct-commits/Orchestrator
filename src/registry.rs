@@ -45,6 +45,13 @@ CREATE TABLE IF NOT EXISTS ingest_cache (
 pub enum Error {
     #[error("registry database error: {0}")]
     Sqlite(#[from] rusqlite::Error),
+
+    #[error("could not create registry directory {path}: {source}")]
+    Dir {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 /// A project as stored in the registry. Identity + where to read its
@@ -118,6 +125,15 @@ pub fn list_projects(conn: &Connection) -> Result<Vec<RegisteredProject>, Error>
 /// is present. Enables foreign-key enforcement, which SQLite leaves off by
 /// default.
 pub fn open(path: impl AsRef<Path>) -> Result<Connection, Error> {
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|source| Error::Dir {
+                path: parent.display().to_string(),
+                source,
+            })?;
+        }
+    }
     let conn = Connection::open(path)?;
     init(&conn)?;
     Ok(conn)

@@ -216,6 +216,80 @@ fn registry_upsert_and_list_round_trips() {
 }
 
 #[test]
+fn project_view_mirrors_the_roadmap() {
+    use orchestrator::view::ProjectView;
+
+    let roadmap = parser::parse_str(OWN_ROADMAP).unwrap();
+    let v = ProjectView::from_roadmap(&roadmap, "/repos/orchestrator");
+
+    assert_eq!(v.name, "Orchestrator");
+    assert_eq!(v.slug, "orchestrator");
+    assert_eq!(v.repo_path, "/repos/orchestrator");
+    assert_eq!(v.maturity, "idea");
+    assert_eq!(v.phases.len(), roadmap.phases.len());
+    assert_eq!(v.phases[0].status, "done"); // Phase 1 is done
+    assert_eq!(v.progress.total, 6);
+    assert_eq!(v.parked, vec!["Orchestration hooks".to_string()]);
+
+    // Serializes to the JSON shape the UI consumes.
+    let json = serde_json::to_value(&v).unwrap();
+    assert_eq!(json["progress"]["total"], 6);
+    assert_eq!(json["phases"][0]["status"], "done");
+}
+
+#[test]
+fn portfolio_reads_registered_roadmaps_from_disk() {
+    // A registered repo path whose roadmap.yaml is read back through the
+    // view layer — the same path the Tauri command drives.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("roadmap.yaml"),
+        r#"
+schema_version: 1
+project: {name: Demo, slug: demo, repo: acme/demo, maturity: prototype}
+phases:
+  - {id: 1, name: One, status: done, goal: g, exit_criteria: e}
+  - {id: 2, name: Two, status: todo, goal: g, exit_criteria: e}
+"#,
+    )
+    .unwrap();
+
+    let conn = registry::open_in_memory().unwrap();
+    registry::upsert_project(
+        &conn,
+        &registry::UpsertProject {
+            slug: "demo",
+            name: "Demo",
+            repo: Some("acme/demo"),
+            repo_path: &dir.path().to_string_lossy(),
+            maturity: "prototype",
+            created: None,
+        },
+    )
+    .unwrap();
+
+    let views = orchestrator::view::portfolio(&conn).unwrap();
+    assert_eq!(views.len(), 1);
+    assert_eq!(views[0].name, "Demo");
+    assert_eq!(views[0].progress.done, 1);
+    assert_eq!(views[0].progress.total, 2);
+    assert_eq!(views[0].progress.percent, 50.0);
+}
+
+#[test]
+fn registry_creates_missing_parent_dirs() {
+    // The default registry lives in the per-user data dir, which may not
+    // exist yet — open() must create the whole parent chain.
+    let dir = tempfile::tempdir().unwrap();
+    let nested = dir.path().join("orchestrator").join("registry.db");
+    assert!(!nested.parent().unwrap().exists());
+
+    let conn = registry::open(&nested).unwrap();
+    drop(conn);
+    assert!(nested.exists());
+}
+
+#[test]
 fn registry_schema_initialises() {
     // The registry opens and its tables exist.
     let conn = registry::open_in_memory().expect("registry must initialise");

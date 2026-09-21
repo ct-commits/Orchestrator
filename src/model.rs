@@ -38,6 +38,18 @@ pub enum Status {
     Done,
 }
 
+impl Status {
+    /// The snake_case label used in `roadmap.yaml` and sent to the UI.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Status::Todo => "todo",
+            Status::InProgress => "in_progress",
+            Status::Blocked => "blocked",
+            Status::Done => "done",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Project {
     pub name: String,

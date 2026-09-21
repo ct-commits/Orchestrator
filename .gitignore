@@ -21,6 +21,8 @@ build/
 /target/
 **/target/
 /src-tauri/target/
+# Tauri codegen (schemas etc.) — regenerated on build
+/src-tauri/gen/
 
 # ── Python (ingestion scripts) ──
 __pycache__/
