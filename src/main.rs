@@ -207,9 +207,10 @@ fn cmd_ingest(slug: Option<&str>) -> Result<(), String> {
 
         let detail = match summary.source.as_str() {
             "github" => format!(
-                "{} merged PRs, {} open PRs",
+                "{} merged PRs, {} open PRs, {} recent commits",
                 summary.merged_prs.len(),
-                summary.open_prs.len()
+                summary.open_prs.len(),
+                summary.commits.len()
             ),
             "git" => format!("{} recent commits (git fallback)", summary.commits.len()),
             _ => summary.note.clone().unwrap_or_else(|| "no data".into()),
