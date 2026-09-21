@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ct-commits/Orchestrator/roadmap.schema.json",
+  "title": "Project Roadmap",
+  "description": "Machine-readable roadmap read by the Orchestrator dashboard. Progress % = phases with status 'done' divided by the total number of committed phases. Each phase's exit_criteria both defines 'done' and declares the scope boundary.",
+  "type": "object",
+  "required": ["schema_version", "project", "phases"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "project": {
+      "type": "object",
+      "required": ["name", "slug", "repo", "maturity"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "repo": { "type": "string", "description": "owner/name" },
+        "url": { "type": "string", "format": "uri" },
+        "description": { "type": "string" },
+        "maturity": {
+          "type": "string",
+          "enum": ["idea", "prototype", "working", "production"]
+        },
+        "created": { "type": "string", "format": "date" }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/phase" }
+    },
+    "parked": {
+      "type": "array",
+      "description": "Ideas deliberately excluded from progress %. Promote into 'phases' only when committed.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "why_later": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "phase": {
+      "type": "object",
+      "required": ["id", "name", "status", "goal", "exit_criteria"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["todo", "in_progress", "blocked", "done"]
+        },
+        "goal": { "type": "string" },
+        "tasks": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "exit_criteria": { "type": "string" }
+      }
+    }
+  }
+}

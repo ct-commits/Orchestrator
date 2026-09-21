@@ -1,0 +1,132 @@
+# ─────────────────────────────────────────────────────────────
+# roadmap.yaml
+# Machine-readable roadmap for a single project.
+# Lives at the repo root; the portfolio dashboard reads it.
+#
+# The dashboard COMPUTES, it does not store:
+#   • progress %  = phases with status 'done' ÷ total committed phases
+#   • maturity    = the `maturity` field below (manual — a judgement call)
+#
+# Each phase's `exit_criteria` does double duty:
+#   • it defines "done" objectively — the gate that keeps every
+#     phase ending in a usable state, and
+#   • it is the declared scope boundary — the line a future
+#     scope-guard would check a diff against.
+# ─────────────────────────────────────────────────────────────
+
+schema_version: 1
+
+project:
+  name: Orchestrator
+  slug: orchestrator
+  repo: ct-commits/Orchestrator
+  url: https://github.com/ct-commits/Orchestrator
+  description: >
+    Local-first portfolio dashboard for a solo developer juggling
+    many AI-assisted projects. Owns one thing — the project/roadmap
+    model — and ingests everything else (git, PRs, token cost).
+  maturity: idea          # idea | prototype | working | production
+  created: 2026-09-21
+
+# Committed scope. Progress % is computed from these phases.
+phases:
+  - id: 1
+    name: Schema & parser
+    status: in_progress   # todo | in_progress | blocked | done
+    goal: >
+      Lock the roadmap.yaml schema and a parser that turns it into
+      phases plus a computed progress %. Dogfood it on this repo.
+    tasks:
+      - Finalise roadmap.yaml fields (this file is the reference instance)
+      - Define the local project registry (SQLite - projects, repo paths, ingest cache)
+      - Write a parser/validator that loads a roadmap and returns phases + progress %
+    exit_criteria: >
+      This repo's own roadmap.yaml parses and validates, and the
+      parser returns the correct phase list and progress % for it.
+
+  - id: 2
+    name: Static portfolio report
+    status: todo
+    goal: >
+      Prove the glance is useful before building an app around it -
+      a script that reads roadmaps and emits a static HTML report.
+    tasks:
+      - Read every registered project's roadmap.yaml
+      - Render a portfolio view - project list, per-project progress bar, phases, maturity badge
+      - Emit as a single static HTML file - no network, no framework
+    exit_criteria: >
+      One command produces an HTML report showing all registered
+      projects with accurate progress bars, and it is genuinely
+      useful to look at. If it is not, stop here.
+
+  - id: 3
+    name: Tauri shell
+    status: todo
+    goal: >
+      Wrap the same read model in a local-first Tauri app - the
+      portfolio glance as a real window, reading local files only.
+    tasks:
+      - Tauri shell with the project list drawn from the registry
+      - Feed the Phase-1 parser into the UI (progress bar, phase status, maturity)
+      - "Add project" = point the tool at a repo path
+    exit_criteria: >
+      The app launches and shows every registered project with an
+      accurate progress bar and phase list, reading only local
+      roadmap.yaml files, and works offline.
+
+  - id: 4
+    name: Git & GitHub ingestion
+    status: todo
+    goal: >
+      The per-project summary page - merged PRs, resolved blockers,
+      repo link - pulled from the git host and cached locally.
+    tasks:
+      - GitHub client - merged PRs and closed issues labelled 'blocker'
+      - git log fallback for local-only repos
+      - Cache results to the registry; render the summary page
+    exit_criteria: >
+      A project with a GitHub repo shows its merged PRs, resolved
+      blockers and a working repo link; a local-only repo falls
+      back to git log without error.
+
+  - id: 5
+    name: Token & cost ledger
+    status: todo
+    goal: >
+      Per-project token usage and cost - ingested, not re-instrumented.
+    tasks:
+      - Ingest CodeBurn JSON (codeburn ... --format json)
+      - Map CodeBurn's project buckets to registry projects
+      - Render a cost ledger on the summary page
+    exit_criteria: >
+      The summary shows total tokens and cost per project from
+      CodeBurn; a project with no cost data renders cleanly as
+      zero/none rather than breaking.
+
+  - id: 6
+    name: Working-tool cutline
+    status: todo
+    goal: >
+      Make it a daily-usable local tool and freeze scope. This is
+      the maturity gate, not a feature phase.
+    tasks:
+      - Manual refresh/ingest control and correct offline cache behaviour
+      - Empty states for missing roadmaps / repos / cost data
+      - Single-command launch
+    exit_criteria: >
+      You use it for a week to check where your projects stand.
+      It stays read-mostly - it triggers no agents. On passing,
+      bump `maturity` to `working`.
+
+# Parked, not committed. Deliberately excluded from progress %.
+# Only promote an item into `phases` if the dashboard proves worth
+# living in - this is the fence against fusing dashboard + orchestrator
+# too early.
+parked:
+  - name: Orchestration hooks
+    why_later: >
+      The same roadmap.yaml already feeds this - a phase's `goal`
+      and `tasks` become an implementer prompt, and its
+      `exit_criteria` becomes the scope-guard boundary. Build it
+      only once the dashboard earns its place, and keep the human
+      gates when you do.

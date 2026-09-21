@@ -1,0 +1,42 @@
+# ── Local data / caches (the registry and ingested data are disposable) ──
+*.db
+*.sqlite
+*.sqlite3
+/cache/
+/.cache/
+
+# ── Env / secrets ──
+.env
+.env.*
+*.local
+
+# ── Node / TypeScript ──
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.npm/
+
+# ── Rust / Tauri ──
+/target/
+**/target/
+/src-tauri/target/
+
+# ── Python (ingestion scripts) ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+
+# ── Generated reports (Phase 2 static output) ──
+/report.html
+/out/
+
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
