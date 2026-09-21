@@ -177,7 +177,7 @@ fn cmd_report(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// Ingest delivery history (merged PRs, resolved blockers) for every
+/// Ingest delivery history (merged PRs, open PRs, last activity) for every
 /// registered project, or one by `slug`, and cache it in the registry.
 /// This is the only path that touches the network (via `gh`); the app
 /// reads the cache it writes.
@@ -206,9 +206,9 @@ fn cmd_ingest(slug: Option<&str>) -> Result<(), String> {
 
         let detail = match summary.source.as_str() {
             "github" => format!(
-                "{} merged PRs, {} resolved blockers",
+                "{} merged PRs, {} open PRs",
                 summary.merged_prs.len(),
-                summary.resolved_blockers.len()
+                summary.open_prs.len()
             ),
             "git" => format!("{} recent commits (git fallback)", summary.commits.len()),
             _ => summary.note.clone().unwrap_or_else(|| "no data".into()),

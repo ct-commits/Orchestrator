@@ -52,6 +52,17 @@
   const fmtNum = (n) => n.toLocaleString();
   const fmtTokens = (n) =>
     n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n);
+  function fmtAgo(iso) {
+    if (!iso) return null;
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return null;
+    const s = Math.max(0, (Date.now() - then) / 1000);
+    if (s < 3600) return Math.round(s / 60) + "m ago";
+    if (s < 86400) return Math.round(s / 3600) + "h ago";
+    if (s < 86400 * 30) return Math.round(s / 86400) + "d ago";
+    if (s < 86400 * 365) return Math.round(s / (86400 * 30)) + "mo ago";
+    return Math.round(s / (86400 * 365)) + "y ago";
+  }
   const subtitle = $derived(
     projects.length === 1 ? "1 project" : `${projects.length} projects`,
   );
@@ -91,7 +102,12 @@
               <span class="badge badge-none">no roadmap</span>
             {/if}
           </div>
-          <p class="repo">{p.repo || p.repo_path}</p>
+          <div class="repo-row">
+            <span class="repo">{p.repo || p.repo_path}</span>
+            {#if p.last_activity}
+              <span class="ago" title="Last activity">active {fmtAgo(p.last_activity)}</span>
+            {/if}
+          </div>
           {#if p.has_roadmap}
             <div
               class="bar"
@@ -181,11 +197,11 @@
         {:else if !delivery}
           <p class="muted">
             Not ingested yet. Run <code>orchestrator ingest {selected.slug}</code> to fetch
-            merged PRs and resolved blockers.
+            merged &amp; open PRs and last activity.
           </p>
         {:else}
           <p class="source">
-            Source: {delivery.source} · fetched {delivery.fetched_at}
+            Source: {delivery.source}{#if delivery.last_activity} · last activity {fmtAgo(delivery.last_activity)}{/if} · fetched {delivery.fetched_at}
           </p>
           {#if delivery.note}<p class="muted">{delivery.note}</p>{/if}
 
@@ -204,15 +220,15 @@
               </ul>
             {/if}
 
-            <h4>Resolved blockers ({delivery.resolved_blockers.length})</h4>
-            {#if delivery.resolved_blockers.length === 0}
-              <p class="muted">None.</p>
+            <h4>Open PRs ({delivery.open_prs.length})</h4>
+            {#if delivery.open_prs.length === 0}
+              <p class="muted">None in flight.</p>
             {:else}
               <ul class="links">
-                {#each delivery.resolved_blockers as it (it.number)}
+                {#each delivery.open_prs as pr (pr.number)}
                   <li>
-                    <a href={it.url} target="_blank" rel="noreferrer">#{it.number}</a>
-                    {it.title}
+                    <a href={pr.url} target="_blank" rel="noreferrer">#{pr.number}</a>
+                    {pr.title}
                   </li>
                 {/each}
               </ul>

@@ -76,17 +76,17 @@ phases:
 
   - id: 4
     name: Git & GitHub ingestion
-    status: in_progress
+    status: done
     goal: >
-      The per-project summary page - merged PRs, resolved blockers,
-      repo link - pulled from the git host and cached locally.
+      The per-project summary page - merged PRs, open PRs, last
+      activity, repo link - pulled from the git host and cached locally.
     tasks:
-      - GitHub client - merged PRs and closed issues labelled 'blocker'
-      - git log fallback for local-only repos
+      - GitHub client - merged PRs, open PRs, and last-activity timestamp
+      - git log fallback for local-only repos (recent commits + last commit date)
       - Cache results to the registry; render the summary page
     exit_criteria: >
-      A project with a GitHub repo shows its merged PRs, resolved
-      blockers and a working repo link; a local-only repo falls
+      A project with a GitHub repo shows its merged PRs, open PRs,
+      last activity and a working repo link; a local-only repo falls
       back to git log without error.
 
   - id: 5

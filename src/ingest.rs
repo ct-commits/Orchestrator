@@ -1,4 +1,4 @@
-//! Ingest delivery history — merged PRs and resolved "blocker" issues from
+//! Ingest delivery history — merged PRs, open PRs, and last activity from
 //! GitHub (via the `gh` CLI, reusing the user's existing auth), with a
 //! `git log` fallback for local-only repos.
 //!
@@ -22,15 +22,6 @@ pub struct PrRef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct IssueRef {
-    pub number: i64,
-    pub title: String,
-    pub url: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub closed_at: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommitRef {
     pub hash: String,
     pub subject: String,
@@ -44,9 +35,16 @@ pub struct DeliverySummary {
     pub source: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repo_url: Option<String>,
+    #[serde(default)]
     pub merged_prs: Vec<PrRef>,
-    pub resolved_blockers: Vec<IssueRef>,
+    /// PRs currently open (in flight).
+    #[serde(default)]
+    pub open_prs: Vec<PrRef>,
+    /// When the repo was last pushed to / last committed (ISO-8601).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_activity: Option<String>,
     /// Populated by the git-log fallback when GitHub is unavailable.
+    #[serde(default)]
     pub commits: Vec<CommitRef>,
     pub fetched_at: String,
     /// A human note when something degraded (e.g. gh missing, git failed).
@@ -84,15 +82,6 @@ struct GhPr {
     merged_at: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct GhIssue {
-    number: i64,
-    title: String,
-    url: String,
-    #[serde(rename = "closedAt")]
-    closed_at: Option<String>,
-}
-
 /// Parse `gh pr list --json number,title,url,mergedAt`.
 pub fn parse_prs(json: &str) -> Result<Vec<PrRef>, Error> {
     let raw: Vec<GhPr> = serde_json::from_str(json).map_err(|source| Error::Json {
@@ -106,23 +95,6 @@ pub fn parse_prs(json: &str) -> Result<Vec<PrRef>, Error> {
             title: p.title,
             url: p.url,
             merged_at: p.merged_at,
-        })
-        .collect())
-}
-
-/// Parse `gh issue list --json number,title,url,closedAt`.
-pub fn parse_blockers(json: &str) -> Result<Vec<IssueRef>, Error> {
-    let raw: Vec<GhIssue> = serde_json::from_str(json).map_err(|source| Error::Json {
-        tool: "gh".into(),
-        source,
-    })?;
-    Ok(raw
-        .into_iter()
-        .map(|i| IssueRef {
-            number: i.number,
-            title: i.title,
-            url: i.url,
-            closed_at: i.closed_at,
         })
         .collect())
 }
@@ -170,26 +142,30 @@ fn gh_available() -> bool {
     run("gh", &["--version"]).is_ok()
 }
 
-fn gh_merged_prs(repo: &str) -> Result<Vec<PrRef>, Error> {
+fn gh_prs(repo: &str, state: &str) -> Result<Vec<PrRef>, Error> {
     let json = run(
         "gh",
         &[
-            "pr", "list", "--repo", repo, "--state", "merged", "--limit", "20", "--json",
+            "pr", "list", "--repo", repo, "--state", state, "--limit", "20", "--json",
             "number,title,url,mergedAt",
         ],
     )?;
     parse_prs(&json)
 }
 
-fn gh_resolved_blockers(repo: &str) -> Result<Vec<IssueRef>, Error> {
-    let json = run(
+/// The repo's last push time (ISO-8601), via `gh repo view`.
+fn gh_last_activity(repo: &str) -> Option<String> {
+    let out = run(
         "gh",
-        &[
-            "issue", "list", "--repo", repo, "--state", "closed", "--label", "blocker",
-            "--limit", "20", "--json", "number,title,url,closedAt",
-        ],
-    )?;
-    parse_blockers(&json)
+        &["repo", "view", repo, "--json", "pushedAt", "--jq", ".pushedAt"],
+    )
+    .ok()?;
+    let s = out.trim();
+    if s.is_empty() || s == "null" {
+        None
+    } else {
+        Some(s.to_string())
+    }
 }
 
 fn git_recent_commits(repo_path: &str) -> Result<Vec<CommitRef>, Error> {
@@ -216,21 +192,22 @@ pub fn ingest_project(repo: Option<&str>, repo_path: &str, repo_url: Option<Stri
 
     if let Some(repo) = repo {
         if gh_available() {
-            let prs = gh_merged_prs(repo);
-            let blockers = gh_resolved_blockers(repo);
-            if let (Ok(merged_prs), Ok(resolved_blockers)) = (&prs, &blockers) {
+            let merged = gh_prs(repo, "merged");
+            let open = gh_prs(repo, "open");
+            if let (Ok(merged_prs), Ok(open_prs)) = (&merged, &open) {
                 return DeliverySummary {
                     source: "github".into(),
                     repo_url: repo_url.or_else(|| Some(format!("https://github.com/{repo}"))),
                     merged_prs: merged_prs.clone(),
-                    resolved_blockers: resolved_blockers.clone(),
+                    open_prs: open_prs.clone(),
+                    last_activity: gh_last_activity(repo),
                     commits: Vec::new(),
                     fetched_at,
                     note: None,
                 };
             }
             // gh present but a call failed — fall back to git, keep the reason.
-            let reason = prs.err().or_else(|| blockers.err()).map(|e| e.to_string());
+            let reason = merged.err().or_else(|| open.err()).map(|e| e.to_string());
             return git_fallback(repo_path, repo_url, fetched_at, reason);
         }
     }
@@ -248,7 +225,9 @@ fn git_fallback(
             source: "git".into(),
             repo_url,
             merged_prs: Vec::new(),
-            resolved_blockers: Vec::new(),
+            open_prs: Vec::new(),
+            // Most recent commit's date stands in for last activity.
+            last_activity: commits.first().map(|c| c.date.clone()),
             commits,
             fetched_at,
             note: reason.map(|r| format!("GitHub unavailable ({r}); showing local git log")),
@@ -257,7 +236,8 @@ fn git_fallback(
             source: "none".into(),
             repo_url,
             merged_prs: Vec::new(),
-            resolved_blockers: Vec::new(),
+            open_prs: Vec::new(),
+            last_activity: None,
             commits: Vec::new(),
             fetched_at,
             note: Some(format!("no delivery data: {e}")),
