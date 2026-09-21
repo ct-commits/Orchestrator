@@ -93,6 +93,19 @@ npm install
 npm start        # = tauri dev
 ```
 
+To install it as a **double-click desktop app** (production build, no dev
+server, with a Desktop shortcut) — re-run after pulling to refresh it:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-shortcut.ps1
+```
+
+Install the CLI on your PATH so `orchestrator` works from any repo:
+
+```bash
+cargo install --path .
+```
+
 The registry is a per-user SQLite file (`<data-dir>/orchestrator/
 registry.db`, e.g. `%APPDATA%` on Windows), so the CLI and the app share
 it wherever they run; override with `ORCHESTRATOR_DB`. Run the tests with
