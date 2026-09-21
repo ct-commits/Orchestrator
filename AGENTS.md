@@ -31,7 +31,15 @@ scope.
 
 ## Stack
 
-Chosen per phase; see the roadmap. Expected shape: a parser/validator for
-`roadmap.yaml` (validated against `roadmap.schema.json`), a SQLite
-registry, a static HTML renderer as the first proof, then a Tauri shell,
-with GitHub API + CodeBurn JSON for ingestion.
+**Rust** is the implementation language for the whole core, chosen in
+Phase 1. The parser/registry becomes a Tauri command directly in Phase 3
+(Tauri's backend is Rust), so there is no runtime to bundle and no
+rewrite at the app boundary; ingestion (Phase 4/5) stays in Rust too
+rather than splitting into a Python sidecar. Memory-safe, no shipped
+runtime, small dependency surface — matching the read-mostly,
+local-first, no-network constraints above.
+
+Shape, per phase (see the roadmap): a parser/validator for `roadmap.yaml`
+(validated against `roadmap.schema.json`) over a SQLite registry
+(`rusqlite`, bundled), a static HTML renderer as the first proof, then a
+Tauri shell, with the GitHub API + CodeBurn JSON ingested later.
