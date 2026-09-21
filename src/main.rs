@@ -26,6 +26,7 @@ fn main() -> ExitCode {
         "add" => cmd_add(rest.first().map(String::as_str)),
         "report" => cmd_report(rest),
         "ingest" => cmd_ingest(rest.first().map(String::as_str)),
+        "cost" => cmd_cost(rest),
         "-h" | "--help" | "help" => {
             print_usage();
             Ok(())
@@ -171,14 +172,64 @@ fn cmd_ingest(slug: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
+/// Ingest a CodeBurn JSON export (Settings > Export; schema
+/// codeburn.export.v2), match its per-project buckets to registered
+/// projects by path, and cache each project's token + cost totals.
+fn cmd_cost(args: &[String]) -> Result<(), String> {
+    let file = parse_import_flag(args)?
+        .ok_or("usage: orchestrator cost --import <CodeBurn-Export.json>")?;
+
+    let ingested = orchestrator::cost::load_export(&file).map_err(|e| e.to_string())?;
+    let conn = open_registry()?;
+    let projects = registry::list_projects(&conn).map_err(|e| e.to_string())?;
+    if projects.is_empty() {
+        return Err("no projects registered yet — add one with `orchestrator add <repo-path>`".into());
+    }
+
+    let mut matched = 0usize;
+    for p in &projects {
+        match orchestrator::cost::match_project(&ingested.projects, &p.repo_path) {
+            Some(bucket) => {
+                let record = orchestrator::cost::CostRecord {
+                    cost_usd: bucket.cost_usd,
+                    api_calls: bucket.api_calls,
+                    tokens: bucket.tokens,
+                    generated: ingested.generated.clone(),
+                    source_path: bucket.path.clone(),
+                };
+                let payload = serde_json::to_string(&record).map_err(|e| e.to_string())?;
+                registry::put_cache(&conn, &p.slug, "cost", &payload, &ingested.generated)
+                    .map_err(|e| e.to_string())?;
+                matched += 1;
+                println!(
+                    "  {} — ${:.2} · {} calls · {} tokens",
+                    p.name,
+                    record.cost_usd,
+                    record.api_calls,
+                    record.tokens.total()
+                );
+            }
+            None => println!("  {} — no cost data (no matching CodeBurn project path)", p.name),
+        }
+    }
+    println!(
+        "matched {}/{} registered projects from {}",
+        matched,
+        projects.len(),
+        file.display()
+    );
+    Ok(())
+}
+
 // ── helpers ─────────────────────────────────────────────────────────────
 
 const USAGE: &str = "\
 usage:
-  orchestrator show   [roadmap.yaml]     parse one roadmap, print phases + progress
-  orchestrator add    <repo-path>        register a repo that contains roadmap.yaml
-  orchestrator report [--out <file>]     emit a static HTML portfolio report
-  orchestrator ingest [slug]             fetch delivery history (gh/git) into the cache";
+  orchestrator show   [roadmap.yaml]              parse one roadmap, print phases + progress
+  orchestrator add    <repo-path>                 register a repo that contains roadmap.yaml
+  orchestrator report [--out <file>]              emit a static HTML portfolio report
+  orchestrator ingest [slug]                      fetch delivery history (gh/git) into the cache
+  orchestrator cost   --import <export.json>      ingest a CodeBurn JSON export into the cost ledger";
 
 fn print_usage() {
     println!("{USAGE}");
@@ -205,6 +256,16 @@ fn parse_out_flag(args: &[String]) -> Result<Option<PathBuf>, String> {
         [] => Ok(None),
         [flag, value] if flag == "--out" || flag == "-o" => Ok(Some(PathBuf::from(value))),
         [flag] if flag == "--out" || flag == "-o" => Err("--out needs a file path".into()),
+        _ => Err(format!("unexpected arguments: {}", args.join(" "))),
+    }
+}
+
+fn parse_import_flag(args: &[String]) -> Result<Option<PathBuf>, String> {
+    match args {
+        [] => Ok(None),
+        [flag, value] if flag == "--import" || flag == "-i" => Ok(Some(PathBuf::from(value))),
+        [value] if !value.starts_with('-') => Ok(Some(PathBuf::from(value))),
+        [flag] if flag == "--import" || flag == "-i" => Err("--import needs a file path".into()),
         _ => Err(format!("unexpected arguments: {}", args.join(" "))),
     }
 }

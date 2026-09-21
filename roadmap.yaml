@@ -91,12 +91,12 @@ phases:
 
   - id: 5
     name: Token & cost ledger
-    status: todo
+    status: in_progress
     goal: >
       Per-project token usage and cost - ingested, not re-instrumented.
     tasks:
-      - Ingest CodeBurn JSON (codeburn ... --format json)
-      - Map CodeBurn's project buckets to registry projects
+      - Ingest CodeBurn's JSON export (Settings > Export; schema codeburn.export.v2). CodeBurn 0.9.24 ships no CLI/stdout JSON, so we read the exported file.
+      - Map CodeBurn's project buckets (keyed by absolute launch path) to registry projects by repo path
       - Render a cost ledger on the summary page
     exit_criteria: >
       The summary shows total tokens and cost per project from

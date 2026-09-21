@@ -36,6 +36,9 @@ pub struct ProjectView {
     pub progress: ProgressView,
     pub phases: Vec<PhaseView>,
     pub parked: Vec<String>,
+    /// Cached CodeBurn cost, if ingested. `None` = no cost data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<crate::cost::CostRecord>,
 }
 
 impl ProjectView {
@@ -63,6 +66,7 @@ impl ProjectView {
                 })
                 .collect(),
             parked: rm.parked.iter().map(|p| p.name.clone()).collect(),
+            cost: None,
         }
     }
 }
@@ -101,9 +105,25 @@ pub fn portfolio(conn: &Connection) -> Result<Vec<ProjectView>, Error> {
     for p in &projects {
         let path = std::path::Path::new(&p.repo_path).join("roadmap.yaml");
         match parser::load(&path) {
-            Ok(rm) => views.push(ProjectView::from_roadmap(&rm, &p.repo_path)),
+            Ok(rm) => {
+                let mut view = ProjectView::from_roadmap(&rm, &p.repo_path);
+                view.cost = cost(conn, &p.slug)?;
+                views.push(view);
+            }
             Err(e) => eprintln!("warning: skipping {} — {e}", p.name),
         }
     }
     Ok(views)
+}
+
+/// The cached CodeBurn cost record for one project, if ingested. Reads only
+/// the local cache — no network, no CodeBurn dependency at read time.
+pub fn cost(
+    conn: &Connection,
+    slug: &str,
+) -> Result<Option<crate::cost::CostRecord>, Error> {
+    match registry::get_cache(conn, slug, "cost")? {
+        Some(entry) => Ok(Some(serde_json::from_str(&entry.payload).map_err(Error::Json)?)),
+        None => Ok(None),
+    }
 }
