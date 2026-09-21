@@ -32,7 +32,7 @@ project:
 phases:
   - id: 1
     name: Schema & parser
-    status: in_progress   # todo | in_progress | blocked | done
+    status: done          # todo | in_progress | blocked | done
     goal: >
       Lock the roadmap.yaml schema and a parser that turns it into
       phases plus a computed progress %. Dogfood it on this repo.
@@ -46,7 +46,7 @@ phases:
 
   - id: 2
     name: Static portfolio report
-    status: todo
+    status: in_progress
     goal: >
       Prove the glance is useful before building an app around it -
       a script that reads roadmaps and emits a static HTML report.

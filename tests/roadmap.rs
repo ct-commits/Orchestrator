@@ -35,10 +35,9 @@ fn returns_the_correct_phase_list() {
         ]
     );
 
-    // Ids are sequential 1..=6 and Phase 1 is the one in progress.
+    // Ids are sequential 1..=6.
     let ids: Vec<i64> = roadmap.phases.iter().map(|p| p.id).collect();
     assert_eq!(ids, [1, 2, 3, 4, 5, 6]);
-    assert_eq!(roadmap.phases[0].status, Status::InProgress);
 }
 
 #[test]
@@ -46,10 +45,16 @@ fn computes_progress_correctly() {
     let roadmap = parser::parse_str(OWN_ROADMAP).unwrap();
     let prog = roadmap.progress();
 
-    // Nothing is `done` yet: 0 of 6 committed phases.
-    assert_eq!(prog.done, 0);
+    // Consistent with the live phase list, so this doesn't break each time
+    // a phase is completed: done == phases marked done, total == all phases.
+    let expected_done = roadmap
+        .phases
+        .iter()
+        .filter(|p| p.status == Status::Done)
+        .count();
+    assert_eq!(prog.done, expected_done);
     assert_eq!(prog.total, 6);
-    assert_eq!(prog.percent, 0.0);
+    assert_eq!(prog.percent, (expected_done as f64 / 6.0) * 100.0);
 }
 
 #[test]
@@ -146,6 +151,68 @@ phases:
         parser::parse_str(bad),
         Err(parser::Error::Invalid(_))
     ));
+}
+
+#[test]
+fn report_renders_accurate_progress_bars() {
+    use orchestrator::report::{self, Entry};
+
+    let roadmap = parser::parse_str(OWN_ROADMAP).unwrap();
+    let prog = roadmap.progress();
+    let html = report::render(&[Entry {
+        roadmap: &roadmap,
+        repo_path: "/tmp/orchestrator",
+    }]);
+
+    // A self-contained document: no framework, no network references.
+    assert!(html.starts_with("<!DOCTYPE html>"));
+    assert!(!html.contains("http://") && !html.contains("https://"));
+    assert!(!html.contains("<script"));
+
+    // The bar width matches the computed progress, and the project shows.
+    let pct = prog.percent.round() as i64;
+    assert!(html.contains(&format!("width:{pct}%")));
+    assert!(html.contains(&format!("{}/{} phases", prog.done, prog.total)));
+    assert!(html.contains("Orchestrator"));
+    assert!(html.contains("Schema &amp; parser")); // HTML-escaped phase name
+}
+
+#[test]
+fn report_handles_an_empty_portfolio() {
+    use orchestrator::report;
+    let html = report::render(&[]);
+    assert!(html.contains("No projects registered yet."));
+    assert!(html.starts_with("<!DOCTYPE html>"));
+}
+
+#[test]
+fn registry_upsert_and_list_round_trips() {
+    let conn = registry::open_in_memory().unwrap();
+
+    let insert = |slug: &str, name: &str| {
+        registry::upsert_project(
+            &conn,
+            &registry::UpsertProject {
+                slug,
+                name,
+                repo: Some("acme/demo"),
+                repo_path: "/repos/demo",
+                maturity: "idea",
+                created: None,
+            },
+        )
+        .unwrap()
+    };
+
+    let id1 = insert("demo", "Demo");
+    // Re-registering the same slug updates in place (same id), no duplicate.
+    let id2 = insert("demo", "Demo Renamed");
+    assert_eq!(id1, id2);
+
+    let projects = registry::list_projects(&conn).unwrap();
+    assert_eq!(projects.len(), 1);
+    assert_eq!(projects[0].name, "Demo Renamed");
+    assert_eq!(projects[0].repo.as_deref(), Some("acme/demo"));
 }
 
 #[test]
