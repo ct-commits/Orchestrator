@@ -15,7 +15,12 @@ fn own_roadmap_parses_and_validates() {
     assert_eq!(roadmap.schema_version, 1);
     assert_eq!(roadmap.project.slug, "orchestrator");
     assert_eq!(roadmap.project.repo, "ct-commits/Orchestrator");
-    assert_eq!(roadmap.project.maturity, Maturity::Idea);
+    // maturity is a manual judgement field that moves over time; just
+    // require it to be one of the valid stages rather than pinning a value.
+    assert!(matches!(
+        roadmap.project.maturity,
+        Maturity::Idea | Maturity::Prototype | Maturity::Working | Maturity::Production
+    ));
 }
 
 #[test]
@@ -225,7 +230,8 @@ fn project_view_mirrors_the_roadmap() {
     assert_eq!(v.name, "Orchestrator");
     assert_eq!(v.slug, "orchestrator");
     assert_eq!(v.repo_path, "/repos/orchestrator");
-    assert_eq!(v.maturity, "idea");
+    // The view mirrors whatever maturity the roadmap currently declares.
+    assert_eq!(v.maturity, roadmap.project.maturity.as_str());
     assert_eq!(v.phases.len(), roadmap.phases.len());
     assert_eq!(v.phases[0].status, "done"); // Phase 1 is done
     assert_eq!(v.progress.total, 6);
@@ -538,6 +544,36 @@ fn registry_creates_missing_parent_dirs() {
     let conn = registry::open(&nested).unwrap();
     drop(conn);
     assert!(nested.exists());
+}
+
+#[test]
+fn remove_project_deletes_row_and_cascades_cache() {
+    let conn = registry::open_in_memory().unwrap();
+    registry::upsert_project(
+        &conn,
+        &registry::UpsertProject {
+            slug: "demo",
+            name: "Demo",
+            repo: Some("acme/demo"),
+            repo_path: "/repos/demo",
+            maturity: "idea",
+            created: None,
+        },
+    )
+    .unwrap();
+    registry::put_cache(&conn, "demo", "delivery", "{}", "2026-09-21T00:00:00Z").unwrap();
+    registry::put_cache(&conn, "demo", "cost", "{}", "2026-09-21T00:00:00Z").unwrap();
+
+    // Removing an unknown slug is a no-op that reports false.
+    assert!(!registry::remove_project(&conn, "nope").unwrap());
+
+    assert!(registry::remove_project(&conn, "demo").unwrap());
+    assert!(registry::list_projects(&conn).unwrap().is_empty());
+    // Cached rows cascaded away with the project.
+    let cache_rows: i64 = conn
+        .query_row("SELECT count(*) FROM ingest_cache", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(cache_rows, 0);
 }
 
 #[test]

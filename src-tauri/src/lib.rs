@@ -27,10 +27,24 @@ fn get_delivery(slug: String) -> Result<Option<DeliverySummary>, String> {
     orchestrator::view::delivery(&conn, &slug).map_err(|e| e.to_string())
 }
 
+/// Unregister a project (and its cached data) by slug. The project's own
+/// roadmap.yaml on disk is untouched. Returns true if a row was removed.
+/// This is the app's one write path — user-initiated portfolio management,
+/// not portfolio work; it triggers nothing.
+#[tauri::command]
+fn remove_project(slug: String) -> Result<bool, String> {
+    let conn = orchestrator::open_default_registry().map_err(|e| e.to_string())?;
+    orchestrator::registry::remove_project(&conn, &slug).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![list_projects, get_delivery])
+        .invoke_handler(tauri::generate_handler![
+            list_projects,
+            get_delivery,
+            remove_project
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -28,6 +28,7 @@ fn main() -> ExitCode {
         "ingest" => cmd_ingest(rest.first().map(String::as_str)),
         "cost" => cmd_cost(rest),
         "scaffold" => cmd_scaffold(rest.first().map(String::as_str)),
+        "remove" => cmd_remove(rest.first().map(String::as_str)),
         "-h" | "--help" | "help" => {
             print_usage();
             Ok(())
@@ -267,6 +268,39 @@ fn cmd_cost(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Unregister a project (and its cached data) by repo path or slug. The
+/// project's own roadmap.yaml on disk is never touched.
+fn cmd_remove(arg: Option<&str>) -> Result<(), String> {
+    let arg = arg.ok_or("usage: orchestrator remove <repo-path | slug>")?;
+    let conn = open_registry()?;
+    let slug = resolve_slug(&conn, arg)?;
+    match registry::remove_project(&conn, &slug).map_err(|e| e.to_string())? {
+        true => {
+            println!("removed {slug} from the portfolio (its roadmap.yaml is untouched)");
+            Ok(())
+        }
+        false => Err(format!(
+            "no registered project matches '{arg}' (try a slug: run `orchestrator report` to see them)"
+        )),
+    }
+}
+
+/// Resolve a `remove` argument to a slug: if it points at a registered
+/// repo path, use that project's slug; otherwise treat it as a slug.
+fn resolve_slug(conn: &rusqlite::Connection, arg: &str) -> Result<String, String> {
+    if let Ok(canon) = canonical_path(arg) {
+        let target = orchestrator::cost::normalize_path(&canon);
+        let projects = registry::list_projects(conn).map_err(|e| e.to_string())?;
+        if let Some(p) = projects
+            .iter()
+            .find(|p| orchestrator::cost::normalize_path(&p.repo_path) == target)
+        {
+            return Ok(p.slug.clone());
+        }
+    }
+    Ok(arg.to_string())
+}
+
 // ── helpers ─────────────────────────────────────────────────────────────
 
 const USAGE: &str = "\
@@ -274,6 +308,7 @@ usage:
   orchestrator show     [roadmap.yaml]            parse one roadmap, print phases + progress
   orchestrator add      <repo-path>               register a repo (placeholder if it has no roadmap.yaml)
   orchestrator scaffold <repo-path>               print an agent prompt to generate a repo's roadmap.yaml
+  orchestrator remove   <repo-path | slug>        unregister a project (cached data too; roadmap.yaml kept)
   orchestrator report   [--out <file>]            emit a static HTML portfolio report
   orchestrator ingest   [slug]                    fetch delivery history (gh/git) into the cache
   orchestrator cost     --import <export.json>    ingest a CodeBurn JSON export into the cost ledger";

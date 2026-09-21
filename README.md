@@ -73,8 +73,12 @@ you paste into a coding agent (Claude Code / Codex) to generate one:
 ```bash
 cargo run -- add <path/to/a/repo>
 cargo run -- scaffold <path/to/a/repo>   # prints an agent prompt; writes nothing
+cargo run -- remove <repo-path | slug>   # unregister; roadmap.yaml is kept
 cargo run -- report --out report.html
 ```
+
+Projects can also be removed from the desktop app (open a project → Remove
+from portfolio).
 
 Ingest delivery history (merged PRs / resolved blockers via `gh`) and a
 CodeBurn cost export (Settings → Export → JSON) into the local cache:
