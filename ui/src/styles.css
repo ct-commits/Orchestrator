@@ -378,6 +378,29 @@ main {
   font-size: 13px;
 }
 
+/* ── remove control ── */
+.remove-row {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.remove-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+.remove-btn {
+  color: var(--blocked);
+  border-color: var(--line);
+}
+.remove-btn:hover:not(:disabled) {
+  border-color: var(--blocked);
+}
+.remove-btn.danger {
+  color: #fff;
+  background: var(--blocked);
+  border-color: var(--blocked);
+}
+
 /* ── cost ── */
 .cost-chip {
   float: right;

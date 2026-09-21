@@ -147,6 +147,14 @@ pub fn get_cache(conn: &Connection, slug: &str, kind: &str) -> Result<Option<Cac
     }
 }
 
+/// Remove a project by slug. Its cached delivery/cost rows go with it
+/// (`ingest_cache` is `ON DELETE CASCADE`, and `open` enables foreign
+/// keys). Returns true if a row was removed, false if the slug was unknown.
+pub fn remove_project(conn: &Connection, slug: &str) -> Result<bool, Error> {
+    let n = conn.execute("DELETE FROM project WHERE slug = ?1", [slug])?;
+    Ok(n > 0)
+}
+
 /// Every registered project, ordered by name for a stable report.
 pub fn list_projects(conn: &Connection) -> Result<Vec<RegisteredProject>, Error> {
     let mut stmt = conn.prepare(

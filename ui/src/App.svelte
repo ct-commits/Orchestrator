@@ -11,6 +11,8 @@
   let delivery = $state(null);
   let deliveryLoading = $state(false);
   let deliveryError = $state(null);
+  let confirmRemove = $state(false);
+  let removeError = $state(null);
 
   async function load() {
     loading = true;
@@ -28,6 +30,8 @@
     selected = p;
     delivery = null;
     deliveryError = null;
+    confirmRemove = false;
+    removeError = null;
     deliveryLoading = true;
     try {
       delivery = await invoke("get_delivery", { slug: p.slug });
@@ -42,6 +46,20 @@
     selected = null;
     delivery = null;
     deliveryError = null;
+    confirmRemove = false;
+    removeError = null;
+  }
+
+  async function doRemove() {
+    removeError = null;
+    try {
+      await invoke("remove_project", { slug: selected.slug });
+      closeDetail();
+      await load();
+    } catch (e) {
+      removeError = String(e);
+      confirmRemove = false;
+    }
   }
 
   onMount(load);
@@ -268,6 +286,21 @@
               <span>Total</span><span>{fmtNum(tokenTotal(selected.cost.tokens))}</span>
             </li>
           </ul>
+        {/if}
+      </section>
+
+      <section class="detail-section remove-row">
+        {#if removeError}<pre class="err">{removeError}</pre>{/if}
+        {#if !confirmRemove}
+          <button class="remove-btn" onclick={() => (confirmRemove = true)}>
+            Remove from portfolio
+          </button>
+        {:else}
+          <span class="muted">Remove <strong>{selected.name}</strong>? (its roadmap.yaml is kept)</span>
+          <div class="remove-actions">
+            <button class="remove-btn danger" onclick={doRemove}>Confirm remove</button>
+            <button onclick={() => (confirmRemove = false)}>Cancel</button>
+          </div>
         {/if}
       </section>
     </aside>
