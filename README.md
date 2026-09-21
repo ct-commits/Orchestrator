@@ -63,9 +63,28 @@ Parse and validate a roadmap and print its phase list + progress %
 (defaults to this repo's own `roadmap.yaml`):
 
 ```bash
-cargo run -- [path/to/roadmap.yaml]
-cargo test
+cargo run -- show [path/to/roadmap.yaml]
 ```
+
+Register projects and emit a static HTML portfolio report:
+
+```bash
+cargo run -- add <path/to/a/repo>
+cargo run -- report --out report.html
+```
+
+Run the desktop app (Tauri) — the same read model in a local window.
+Needs Node (for the Svelte frontend) and the Tauri prerequisites
+(WebView2 on Windows):
+
+```bash
+npm install
+npm run tauri dev
+```
+
+Registry location defaults to `orchestrator.db` in the current
+directory; override with `ORCHESTRATOR_DB`. Run the tests with
+`cargo test`.
 
 ## Roadmap
 
