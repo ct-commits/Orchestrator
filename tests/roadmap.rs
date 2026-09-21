@@ -277,6 +277,19 @@ phases:
 }
 
 #[test]
+fn registry_creates_missing_parent_dirs() {
+    // The default registry lives in the per-user data dir, which may not
+    // exist yet — open() must create the whole parent chain.
+    let dir = tempfile::tempdir().unwrap();
+    let nested = dir.path().join("orchestrator").join("registry.db");
+    assert!(!nested.parent().unwrap().exists());
+
+    let conn = registry::open(&nested).unwrap();
+    drop(conn);
+    assert!(nested.exists());
+}
+
+#[test]
 fn registry_schema_initialises() {
     // The registry opens and its tables exist.
     let conn = registry::open_in_memory().expect("registry must initialise");

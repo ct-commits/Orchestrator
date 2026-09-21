@@ -20,12 +20,34 @@ pub mod view;
 
 pub use model::{Maturity, Parked, Phase, Progress, Project, Roadmap, Status};
 
-/// Path to the local registry: `$ORCHESTRATOR_DB`, or `orchestrator.db` in
-/// the current directory. Local-first and disposable.
+/// Path to the local registry. `$ORCHESTRATOR_DB` wins if set; otherwise a
+/// stable per-user location (`<data-dir>/orchestrator/registry.db`), so the
+/// CLI and the app agree no matter which directory they run from — and the
+/// file never lands inside a watched build folder. Local-first, disposable.
 pub fn registry_path() -> std::path::PathBuf {
-    std::env::var_os("ORCHESTRATOR_DB")
-        .map(std::path::PathBuf::from)
+    if let Some(explicit) = std::env::var_os("ORCHESTRATOR_DB") {
+        return std::path::PathBuf::from(explicit);
+    }
+    user_data_dir()
+        .map(|d| d.join("orchestrator").join("registry.db"))
         .unwrap_or_else(|| std::path::PathBuf::from("orchestrator.db"))
+}
+
+/// The per-user data directory, without pulling in a crate for it:
+/// `%APPDATA%` on Windows, `$XDG_DATA_HOME` or `~/.local/share` elsewhere.
+fn user_data_dir() -> Option<std::path::PathBuf> {
+    #[cfg(windows)]
+    {
+        std::env::var_os("APPDATA").map(std::path::PathBuf::from)
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var_os("XDG_DATA_HOME")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share"))
+            })
+    }
 }
 
 /// Open the default registry (see [`registry_path`]), creating and

@@ -1,0 +1,9 @@
+# Paths the Tauri dev-watcher must ignore, so writes here don't trigger a
+# rebuild loop. The registry now lives in the per-user data dir, but guard
+# against a stray local DB regardless.
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+gen/
