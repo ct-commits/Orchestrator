@@ -25,7 +25,7 @@ project:
     Local-first portfolio dashboard for a solo developer juggling
     many AI-assisted projects. Owns one thing — the project/roadmap
     model — and ingests everything else (git, PRs, token cost).
-  maturity: idea          # idea | prototype | working | production
+  maturity: prototype     # idea | prototype | working | production
   created: 2026-09-21
 
 # Committed scope. Progress % is computed from these phases.
