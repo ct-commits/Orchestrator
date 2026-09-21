@@ -39,6 +39,10 @@ pub struct ProjectView {
     /// Cached CodeBurn cost, if ingested. `None` = no cost data.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<crate::cost::CostRecord>,
+    /// Repo's last-activity timestamp from the cached delivery summary, for
+    /// an at-a-glance freshness signal. `None` until delivery is ingested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_activity: Option<String>,
     /// False for a registered repo that has no (or an invalid) roadmap.yaml
     /// yet — the app renders it as a placeholder "run scaffold" card.
     pub has_roadmap: bool,
@@ -73,6 +77,7 @@ impl ProjectView {
                 .collect(),
             parked: rm.parked.iter().map(|p| p.name.clone()).collect(),
             cost: None,
+            last_activity: None,
             has_roadmap: true,
             issue: None,
         }
@@ -95,6 +100,7 @@ impl ProjectView {
             phases: Vec::new(),
             parked: Vec::new(),
             cost: None,
+            last_activity: None,
             has_roadmap: false,
             issue,
         }
@@ -145,6 +151,7 @@ pub fn portfolio(conn: &Connection) -> Result<Vec<ProjectView>, Error> {
             }
         };
         view.cost = cost(conn, &p.slug)?;
+        view.last_activity = delivery(conn, &p.slug)?.and_then(|d| d.last_activity);
         views.push(view);
     }
     Ok(views)

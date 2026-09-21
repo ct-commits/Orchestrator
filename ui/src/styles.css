@@ -125,6 +125,25 @@ main {
   font-size: 13px;
   font-family: ui-monospace, Menlo, Consolas, monospace;
 }
+.repo-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 12px;
+}
+.repo-row .repo {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repo-row .ago {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .badge {
   font-size: 11px;
   text-transform: uppercase;

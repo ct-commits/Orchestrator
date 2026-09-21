@@ -291,13 +291,14 @@ fn parses_gh_pr_json() {
 }
 
 #[test]
-fn parses_gh_blocker_json() {
+fn parses_open_prs_with_null_merged_at() {
     use orchestrator::ingest;
-    let json = r#"[{"number": 7, "title": "DB migration blocks build", "url": "https://x/issues/7", "closedAt": "2026-09-20T12:00:00Z"}]"#;
-    let issues = ingest::parse_blockers(json).unwrap();
-    assert_eq!(issues.len(), 1);
-    assert_eq!(issues[0].number, 7);
-    assert_eq!(issues[0].closed_at.as_deref(), Some("2026-09-20T12:00:00Z"));
+    // Open PRs come back with mergedAt: null — parse_prs handles it.
+    let json = r#"[{"number": 9, "title": "WIP feature", "url": "https://x/pull/9", "mergedAt": null}]"#;
+    let prs = ingest::parse_prs(json).unwrap();
+    assert_eq!(prs.len(), 1);
+    assert_eq!(prs[0].number, 9);
+    assert_eq!(prs[0].merged_at, None);
 }
 
 #[test]
@@ -342,7 +343,13 @@ fn delivery_cache_round_trips_through_the_view() {
             url: "https://github.com/acme/demo/pull/1".into(),
             merged_at: Some("2026-09-01T00:00:00Z".into()),
         }],
-        resolved_blockers: vec![],
+        open_prs: vec![PrRef {
+            number: 2,
+            title: "In flight".into(),
+            url: "https://github.com/acme/demo/pull/2".into(),
+            merged_at: None,
+        }],
+        last_activity: Some("2026-09-20T08:00:00Z".into()),
         commits: vec![],
         fetched_at: "2026-09-21T10:00:00Z".into(),
         note: None,
@@ -353,6 +360,12 @@ fn delivery_cache_round_trips_through_the_view() {
     let got = orchestrator::view::delivery(&conn, "demo").unwrap().unwrap();
     assert_eq!(got, summary);
     assert_eq!(got.merged_prs[0].number, 1);
+    assert_eq!(got.open_prs[0].number, 2);
+
+    // last_activity also surfaces on the ProjectView (a placeholder here,
+    // since /repos/demo has no roadmap) for at-a-glance freshness.
+    let views = orchestrator::view::portfolio(&conn).unwrap();
+    assert_eq!(views[0].last_activity.as_deref(), Some("2026-09-20T08:00:00Z"));
 }
 
 const SAMPLE_EXPORT: &str = r#"{

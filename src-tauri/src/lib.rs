@@ -17,7 +17,7 @@ fn list_projects() -> Result<Vec<ProjectView>, String> {
     orchestrator::view::portfolio(&conn).map_err(|e| e.to_string())
 }
 
-/// Return the cached delivery summary (merged PRs, resolved blockers, or a
+/// Return the cached delivery summary (merged PRs, open PRs, last activity, or a
 /// git-log fallback) for one project, if it has been ingested. Reads only
 /// the local cache — no network — so the app stays read-mostly. `null`
 /// means "not ingested yet".
