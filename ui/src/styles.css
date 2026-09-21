@@ -148,6 +148,26 @@ main {
   color: var(--wip);
   border-color: var(--wip);
 }
+.badge-none {
+  color: var(--muted);
+  border-style: dashed;
+}
+.placeholder-note {
+  margin: 10px 0 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.cmd {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ink);
+}
 
 .bar {
   height: 8px;

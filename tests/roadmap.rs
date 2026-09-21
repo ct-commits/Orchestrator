@@ -453,6 +453,68 @@ fn cost_rides_along_in_the_project_view() {
 }
 
 #[test]
+fn scaffold_slugify_and_remote_parsing() {
+    use orchestrator::scaffold::{parse_remote, slugify};
+
+    assert_eq!(slugify("My Project 5"), "my-project-5");
+    assert_eq!(slugify("Interaktivt BMC!!"), "interaktivt-bmc");
+    assert_eq!(slugify("__weird__"), "weird");
+    assert_eq!(slugify("!!!"), "project"); // fallback
+
+    assert_eq!(
+        parse_remote("https://github.com/ct-commits/Orchestrator.git"),
+        Some("ct-commits/Orchestrator".into())
+    );
+    assert_eq!(
+        parse_remote("git@github.com:ct-commits/Orchestrator.git"),
+        Some("ct-commits/Orchestrator".into())
+    );
+    assert_eq!(
+        parse_remote("https://gitlab.com/group/sub\n"),
+        Some("group/sub".into())
+    );
+    assert_eq!(parse_remote("not-a-url"), None);
+}
+
+#[test]
+fn scaffold_prompt_embeds_schema_and_path() {
+    let prompt = orchestrator::scaffold::prompt("C:/repos/foo", Some("acme/foo"));
+    assert!(prompt.contains("C:/repos/foo"));
+    assert!(prompt.contains("acme/foo"));
+    assert!(prompt.contains("roadmap.yaml"));
+    // The authoritative schema is embedded so the agent produces valid YAML.
+    assert!(prompt.contains("\"$schema\""));
+    assert!(prompt.contains("exit_criteria"));
+}
+
+#[test]
+fn portfolio_emits_a_placeholder_for_a_repo_without_a_roadmap() {
+    // A registered repo path with no roadmap.yaml on disk.
+    let dir = tempfile::tempdir().unwrap();
+    let conn = registry::open_in_memory().unwrap();
+    registry::upsert_project(
+        &conn,
+        &registry::UpsertProject {
+            slug: "foo",
+            name: "Foo",
+            repo: Some("acme/foo"),
+            repo_path: &dir.path().to_string_lossy(),
+            maturity: "unknown",
+            created: None,
+        },
+    )
+    .unwrap();
+
+    let views = orchestrator::view::portfolio(&conn).unwrap();
+    assert_eq!(views.len(), 1);
+    assert!(!views[0].has_roadmap);
+    assert_eq!(views[0].name, "Foo");
+    assert!(views[0].phases.is_empty());
+    assert_eq!(views[0].progress.total, 0);
+    assert!(views[0].issue.is_none()); // missing, not invalid
+}
+
+#[test]
 fn registry_creates_missing_parent_dirs() {
     // The default registry lives in the per-user data dir, which may not
     // exist yet — open() must create the whole parent chain.

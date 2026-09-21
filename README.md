@@ -66,10 +66,13 @@ Parse and validate a roadmap and print its phase list + progress %
 cargo run -- show [path/to/roadmap.yaml]
 ```
 
-Register projects and emit a static HTML portfolio report:
+Register projects and emit a static HTML portfolio report. A repo with no
+`roadmap.yaml` is registered as a placeholder; `scaffold` prints a prompt
+you paste into a coding agent (Claude Code / Codex) to generate one:
 
 ```bash
 cargo run -- add <path/to/a/repo>
+cargo run -- scaffold <path/to/a/repo>   # prints an agent prompt; writes nothing
 cargo run -- report --out report.html
 ```
 
@@ -87,11 +90,12 @@ Needs Node (for the Svelte frontend) and the Tauri prerequisites
 
 ```bash
 npm install
-npm run tauri dev
+npm start        # = tauri dev
 ```
 
-Registry location defaults to `orchestrator.db` in the current
-directory; override with `ORCHESTRATOR_DB`. Run the tests with
+The registry is a per-user SQLite file (`<data-dir>/orchestrator/
+registry.db`, e.g. `%APPDATA%` on Windows), so the CLI and the app share
+it wherever they run; override with `ORCHESTRATOR_DB`. Run the tests with
 `cargo test`.
 
 ## Roadmap
@@ -100,11 +104,11 @@ Committed scope lives in [`roadmap.yaml`](roadmap.yaml) and is the source
 of truth. In short:
 
 1. **Schema & parser** — lock the schema + parser; compute progress. *(done)*
-2. **Static portfolio report** — one command emits a static HTML portfolio view. *(in progress)*
-3. **Tauri shell** — the same read model as a real local window.
-4. **Git & GitHub ingestion** — merged PRs, resolved blockers, repo link.
-5. **Token & cost ledger** — per-project usage/cost from CodeBurn.
-6. **Working-tool cutline** — daily-usable, scope frozen; the maturity gate.
+2. **Static portfolio report** — one command emits a static HTML portfolio view. *(done)*
+3. **Tauri shell** — the same read model as a real local window. *(done)*
+4. **Git & GitHub ingestion** — merged PRs, resolved blockers, repo link. *(done)*
+5. **Token & cost ledger** — per-project usage/cost from CodeBurn. *(done)*
+6. **Working-tool cutline** — daily-usable, scope frozen; the maturity gate. *(in progress)*
 
 ## Principles
 
