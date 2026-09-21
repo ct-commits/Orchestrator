@@ -71,6 +71,24 @@ impl ProjectView {
 pub enum Error {
     #[error(transparent)]
     Registry(#[from] registry::Error),
+
+    #[error("cached delivery payload is not valid JSON: {0}")]
+    Json(serde_json::Error),
+}
+
+/// The cached delivery summary for one project, if it has been ingested.
+/// Reads only the local cache — no network — so the app stays read-mostly.
+pub fn delivery(
+    conn: &Connection,
+    slug: &str,
+) -> Result<Option<crate::ingest::DeliverySummary>, Error> {
+    match registry::get_cache(conn, slug, "delivery")? {
+        Some(entry) => {
+            let summary = serde_json::from_str(&entry.payload).map_err(Error::Json)?;
+            Ok(Some(summary))
+        }
+        None => Ok(None),
+    }
 }
 
 /// Every registered project, as a view. A project whose `roadmap.yaml` has

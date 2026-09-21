@@ -101,6 +101,52 @@ pub fn upsert_project(conn: &Connection, p: &UpsertProject) -> Result<i64, Error
     Ok(id)
 }
 
+/// A cached, ingested payload for a project (raw JSON, ingested not
+/// re-modelled) plus when it was fetched.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CacheEntry {
+    pub payload: String,
+    pub fetched_at: String,
+}
+
+/// Store (or replace) an ingested payload for a project, keyed by `slug`
+/// and `kind` (e.g. "delivery"). No-op-safe to call repeatedly — the
+/// latest write wins. Errors if the slug is not registered.
+pub fn put_cache(
+    conn: &Connection,
+    slug: &str,
+    kind: &str,
+    payload: &str,
+    fetched_at: &str,
+) -> Result<(), Error> {
+    conn.execute(
+        "INSERT INTO ingest_cache (project_id, kind, payload, fetched_at)
+         SELECT id, ?2, ?3, ?4 FROM project WHERE slug = ?1
+         ON CONFLICT(project_id, kind) DO UPDATE SET
+             payload = excluded.payload,
+             fetched_at = excluded.fetched_at",
+        rusqlite::params![slug, kind, payload, fetched_at],
+    )?;
+    Ok(())
+}
+
+/// Read a cached payload for a project, if present.
+pub fn get_cache(conn: &Connection, slug: &str, kind: &str) -> Result<Option<CacheEntry>, Error> {
+    let mut stmt = conn.prepare(
+        "SELECT c.payload, c.fetched_at
+         FROM ingest_cache c JOIN project p ON p.id = c.project_id
+         WHERE p.slug = ?1 AND c.kind = ?2",
+    )?;
+    let mut rows = stmt.query(rusqlite::params![slug, kind])?;
+    match rows.next()? {
+        Some(row) => Ok(Some(CacheEntry {
+            payload: row.get(0)?,
+            fetched_at: row.get(1)?,
+        })),
+        None => Ok(None),
+    }
+}
+
 /// Every registered project, ordered by name for a stable report.
 pub fn list_projects(conn: &Connection) -> Result<Vec<RegisteredProject>, Error> {
     let mut stmt = conn.prepare(

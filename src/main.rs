@@ -25,6 +25,7 @@ fn main() -> ExitCode {
         "show" => cmd_show(rest.first().map(String::as_str)),
         "add" => cmd_add(rest.first().map(String::as_str)),
         "report" => cmd_report(rest),
+        "ingest" => cmd_ingest(rest.first().map(String::as_str)),
         "-h" | "--help" | "help" => {
             print_usage();
             Ok(())
@@ -129,13 +130,55 @@ fn cmd_report(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+/// Ingest delivery history (merged PRs, resolved blockers) for every
+/// registered project, or one by `slug`, and cache it in the registry.
+/// This is the only path that touches the network (via `gh`); the app
+/// reads the cache it writes.
+fn cmd_ingest(slug: Option<&str>) -> Result<(), String> {
+    let conn = open_registry()?;
+    let projects = registry::list_projects(&conn).map_err(|e| e.to_string())?;
+
+    let targets: Vec<_> = match slug {
+        Some(s) => projects.iter().filter(|p| p.slug == s).collect(),
+        None => projects.iter().collect(),
+    };
+    if targets.is_empty() {
+        return Err(match slug {
+            Some(s) => format!("no registered project with slug '{s}'"),
+            None => "no projects registered yet — add one with `orchestrator add <repo-path>`".into(),
+        });
+    }
+
+    for p in targets {
+        let repo_url = p.repo.as_ref().map(|r| format!("https://github.com/{r}"));
+        let summary =
+            orchestrator::ingest::ingest_project(p.repo.as_deref(), &p.repo_path, repo_url);
+        let payload = serde_json::to_string(&summary).map_err(|e| e.to_string())?;
+        registry::put_cache(&conn, &p.slug, "delivery", &payload, &summary.fetched_at)
+            .map_err(|e| e.to_string())?;
+
+        let detail = match summary.source.as_str() {
+            "github" => format!(
+                "{} merged PRs, {} resolved blockers",
+                summary.merged_prs.len(),
+                summary.resolved_blockers.len()
+            ),
+            "git" => format!("{} recent commits (git fallback)", summary.commits.len()),
+            _ => summary.note.clone().unwrap_or_else(|| "no data".into()),
+        };
+        println!("ingested {} [{}] — {}", p.name, summary.source, detail);
+    }
+    Ok(())
+}
+
 // ── helpers ─────────────────────────────────────────────────────────────
 
 const USAGE: &str = "\
 usage:
   orchestrator show   [roadmap.yaml]     parse one roadmap, print phases + progress
   orchestrator add    <repo-path>        register a repo that contains roadmap.yaml
-  orchestrator report [--out <file>]     emit a static HTML portfolio report";
+  orchestrator report [--out <file>]     emit a static HTML portfolio report
+  orchestrator ingest [slug]             fetch delivery history (gh/git) into the cache";
 
 fn print_usage() {
     println!("{USAGE}");

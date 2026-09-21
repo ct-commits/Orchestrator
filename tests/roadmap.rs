@@ -277,6 +277,85 @@ phases:
 }
 
 #[test]
+fn parses_gh_pr_json() {
+    use orchestrator::ingest;
+    let json = r#"[
+        {"number": 3, "title": "Phase 3: Tauri shell", "url": "https://github.com/ct-commits/Orchestrator/pull/3", "mergedAt": "2026-09-21T10:00:00Z"},
+        {"number": 2, "title": "Phase 2", "url": "https://github.com/ct-commits/Orchestrator/pull/2", "mergedAt": "2026-09-21T09:00:00Z"}
+    ]"#;
+    let prs = ingest::parse_prs(json).unwrap();
+    assert_eq!(prs.len(), 2);
+    assert_eq!(prs[0].number, 3);
+    assert_eq!(prs[0].merged_at.as_deref(), Some("2026-09-21T10:00:00Z"));
+    assert!(prs[0].url.ends_with("/pull/3"));
+}
+
+#[test]
+fn parses_gh_blocker_json() {
+    use orchestrator::ingest;
+    let json = r#"[{"number": 7, "title": "DB migration blocks build", "url": "https://x/issues/7", "closedAt": "2026-09-20T12:00:00Z"}]"#;
+    let issues = ingest::parse_blockers(json).unwrap();
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].number, 7);
+    assert_eq!(issues[0].closed_at.as_deref(), Some("2026-09-20T12:00:00Z"));
+}
+
+#[test]
+fn parses_git_log_unit_separated() {
+    use orchestrator::ingest;
+    // hash \x1f subject \x1f date, one commit per line
+    let text = "abcdef1234567\u{1f}Add parser\u{1f}2026-09-21\n0011223344556\u{1f}Fix loop\u{1f}2026-09-20";
+    let commits = ingest::parse_git_log(text);
+    assert_eq!(commits.len(), 2);
+    assert_eq!(commits[0].hash, "abcdef123"); // truncated to 9
+    assert_eq!(commits[0].subject, "Add parser");
+    assert_eq!(commits[1].date, "2026-09-20");
+}
+
+#[test]
+fn delivery_cache_round_trips_through_the_view() {
+    use orchestrator::ingest::{DeliverySummary, PrRef};
+
+    let conn = registry::open_in_memory().unwrap();
+    registry::upsert_project(
+        &conn,
+        &registry::UpsertProject {
+            slug: "demo",
+            name: "Demo",
+            repo: Some("acme/demo"),
+            repo_path: "/repos/demo",
+            maturity: "idea",
+            created: None,
+        },
+    )
+    .unwrap();
+
+    // Nothing cached yet.
+    assert!(orchestrator::view::delivery(&conn, "demo").unwrap().is_none());
+
+    let summary = DeliverySummary {
+        source: "github".into(),
+        repo_url: Some("https://github.com/acme/demo".into()),
+        merged_prs: vec![PrRef {
+            number: 1,
+            title: "First".into(),
+            url: "https://github.com/acme/demo/pull/1".into(),
+            merged_at: Some("2026-09-01T00:00:00Z".into()),
+        }],
+        resolved_blockers: vec![],
+        commits: vec![],
+        fetched_at: "2026-09-21T10:00:00Z".into(),
+        note: None,
+    };
+    let payload = serde_json::to_string(&summary).unwrap();
+    registry::put_cache(&conn, "demo", "delivery", &payload, &summary.fetched_at).unwrap();
+
+    let got = orchestrator::view::delivery(&conn, "demo").unwrap().unwrap();
+    assert_eq!(got, summary);
+    assert_eq!(got.merged_prs[0].number, 1);
+}
+
+#[test]
 fn registry_creates_missing_parent_dirs() {
     // The default registry lives in the per-user data dir, which may not
     // exist yet — open() must create the whole parent chain.

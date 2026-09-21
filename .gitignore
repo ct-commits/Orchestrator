@@ -16,6 +16,7 @@ dist/
 build/
 *.tsbuildinfo
 .npm/
+.vite/
 
 # ── Rust / Tauri ──
 /target/
