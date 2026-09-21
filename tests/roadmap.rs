@@ -355,6 +355,103 @@ fn delivery_cache_round_trips_through_the_view() {
     assert_eq!(got.merged_prs[0].number, 1);
 }
 
+const SAMPLE_EXPORT: &str = r#"{
+  "schema": "codeburn.export.v2",
+  "generated": "2026-09-21T10:14:23.082Z",
+  "currency": {"code": "USD", "rate": 1, "symbol": "$"},
+  "projects": [{"Project": "C:\\Codex-Prosjekter\\toolbox", "Cost (USD)": 114.19}],
+  "records": [
+    {"project": "C:\\Codex-Prosjekter\\toolbox", "cost": 100.0, "inputTokens": 10, "outputTokens": 20, "reasoningTokens": 5, "cacheWriteTokens": 1, "cacheReadTokens": 1000, "provider": "claude", "model": "Opus 4.8"},
+    {"project": "C:\\Codex-Prosjekter\\toolbox", "cost": 14.19, "inputTokens": 2, "outputTokens": 3, "reasoningTokens": 0, "cacheWriteTokens": 0, "cacheReadTokens": 500},
+    {"project": "C:\\Codex-Prosjekter", "cost": 293.98, "inputTokens": 1, "outputTokens": 1, "reasoningTokens": 0, "cacheWriteTokens": 0, "cacheReadTokens": 0}
+  ]
+}"#;
+
+#[test]
+fn parses_and_aggregates_codeburn_export() {
+    use orchestrator::cost;
+    let ing = cost::parse_export(SAMPLE_EXPORT).unwrap();
+    assert_eq!(ing.generated, "2026-09-21T10:14:23.082Z");
+    assert_eq!(ing.projects.len(), 2); // two distinct project paths
+
+    let tb = cost::match_project(&ing.projects, "C:/Codex-Prosjekter/toolbox").unwrap();
+    assert_eq!(tb.api_calls, 2); // two records summed
+    assert!((tb.cost_usd - 114.19).abs() < 1e-9);
+    assert_eq!(tb.tokens.input, 12);
+    assert_eq!(tb.tokens.output, 23);
+    assert_eq!(tb.tokens.cache_read, 1500);
+    assert_eq!(tb.tokens.total(), 12 + 23 + 5 + 1 + 1500);
+}
+
+#[test]
+fn cost_path_matching_normalizes() {
+    use orchestrator::cost;
+    let ing = cost::parse_export(SAMPLE_EXPORT).unwrap();
+
+    // Windows verbatim prefix, backslashes, trailing sep, and case all match.
+    assert!(cost::match_project(&ing.projects, r"\\?\C:\Codex-Prosjekter\TOOLBOX\").is_some());
+    // A registered repo with no CodeBurn bucket → no cost data.
+    assert!(cost::match_project(&ing.projects, "C:/Codex-Prosjekter/Orchestrator/Orchestrator").is_none());
+}
+
+#[test]
+fn rejects_wrong_export_schema() {
+    use orchestrator::cost;
+    let bad = r#"{"schema": "codeburn.export.v1", "records": []}"#;
+    assert!(matches!(
+        cost::parse_export(bad),
+        Err(orchestrator::cost::Error::Schema { .. })
+    ));
+}
+
+#[test]
+fn cost_rides_along_in_the_project_view() {
+    use orchestrator::cost::{CostRecord, TokenTotals};
+
+    // A registered project with a cached cost record surfaces in portfolio().
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("roadmap.yaml"),
+        "schema_version: 1\nproject: {name: Demo, slug: demo, repo: acme/demo, maturity: idea}\nphases:\n  - {id: 1, name: One, status: todo, goal: g, exit_criteria: e}\n",
+    )
+    .unwrap();
+    let conn = registry::open_in_memory().unwrap();
+    registry::upsert_project(
+        &conn,
+        &registry::UpsertProject {
+            slug: "demo",
+            name: "Demo",
+            repo: Some("acme/demo"),
+            repo_path: &dir.path().to_string_lossy(),
+            maturity: "idea",
+            created: None,
+        },
+    )
+    .unwrap();
+
+    let record = CostRecord {
+        cost_usd: 12.5,
+        api_calls: 3,
+        tokens: TokenTotals { input: 1, output: 2, reasoning: 0, cache_write: 0, cache_read: 7 },
+        generated: "2026-09-21T10:00:00Z".into(),
+        source_path: dir.path().to_string_lossy().into_owned(),
+    };
+    registry::put_cache(
+        &conn,
+        "demo",
+        "cost",
+        &serde_json::to_string(&record).unwrap(),
+        &record.generated,
+    )
+    .unwrap();
+
+    let views = orchestrator::view::portfolio(&conn).unwrap();
+    assert_eq!(views.len(), 1);
+    let cost = views[0].cost.as_ref().expect("cost should ride along");
+    assert_eq!(cost.cost_usd, 12.5);
+    assert_eq!(cost.tokens.total(), 10);
+}
+
 #[test]
 fn registry_creates_missing_parent_dirs() {
     // The default registry lives in the per-user data dir, which may not

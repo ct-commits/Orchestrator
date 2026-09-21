@@ -73,6 +73,14 @@ cargo run -- add <path/to/a/repo>
 cargo run -- report --out report.html
 ```
 
+Ingest delivery history (merged PRs / resolved blockers via `gh`) and a
+CodeBurn cost export (Settings → Export → JSON) into the local cache:
+
+```bash
+cargo run -- ingest
+cargo run -- cost --import <path/to/CodeBurn-Export.json>
+```
+
 Run the desktop app (Tauri) — the same read model in a local window.
 Needs Node (for the Svelte frontend) and the Tauri prerequisites
 (WebView2 on Windows):

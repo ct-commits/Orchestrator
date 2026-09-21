@@ -47,6 +47,11 @@
   onMount(load);
 
   const markers = { done: "✓", in_progress: "▸", blocked: "✗", todo: "·" };
+  const tokenTotal = (t) =>
+    t ? t.input + t.output + t.reasoning + t.cache_write + t.cache_read : 0;
+  const fmtNum = (n) => n.toLocaleString();
+  const fmtTokens = (n) =>
+    n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n);
   const subtitle = $derived(
     projects.length === 1 ? "1 project" : `${projects.length} projects`,
   );
@@ -92,6 +97,11 @@
           </div>
           <p class="prog">
             {p.progress.done}/{p.progress.total} phases · {Math.round(p.progress.percent)}%
+            {#if p.cost}
+              <span class="cost-chip"
+                >${p.cost.cost_usd.toFixed(2)} · {fmtTokens(tokenTotal(p.cost.tokens))} tok</span
+              >
+            {/if}
           </p>
           <ol class="phases">
             {#each p.phases as phase (phase.id)}
@@ -193,6 +203,31 @@
           {:else}
             <p class="muted">No delivery data available.</p>
           {/if}
+        {/if}
+      </section>
+
+      <section class="detail-section">
+        <h3>Cost</h3>
+        {#if !selected.cost}
+          <p class="muted">
+            No cost data. Run <code>orchestrator cost --import &lt;CodeBurn-Export.json&gt;</code>.
+          </p>
+        {:else}
+          <p class="source">From CodeBurn export · generated {selected.cost.generated}</p>
+          <p class="cost-big">
+            ${selected.cost.cost_usd.toFixed(2)}
+            <span class="muted">· {fmtNum(selected.cost.api_calls)} calls</span>
+          </p>
+          <ul class="tokens">
+            <li><span>Input</span><span>{fmtNum(selected.cost.tokens.input)}</span></li>
+            <li><span>Output</span><span>{fmtNum(selected.cost.tokens.output)}</span></li>
+            <li><span>Reasoning</span><span>{fmtNum(selected.cost.tokens.reasoning)}</span></li>
+            <li><span>Cache write</span><span>{fmtNum(selected.cost.tokens.cache_write)}</span></li>
+            <li><span>Cache read</span><span>{fmtNum(selected.cost.tokens.cache_read)}</span></li>
+            <li class="tok-total">
+              <span>Total</span><span>{fmtNum(tokenTotal(selected.cost.tokens))}</span>
+            </li>
+          </ul>
         {/if}
       </section>
     </aside>
