@@ -39,6 +39,12 @@ pub struct ProjectView {
     /// Cached CodeBurn cost, if ingested. `None` = no cost data.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cost: Option<crate::cost::CostRecord>,
+    /// False for a registered repo that has no (or an invalid) roadmap.yaml
+    /// yet — the app renders it as a placeholder "run scaffold" card.
+    pub has_roadmap: bool,
+    /// A human note for a placeholder (e.g. why the roadmap didn't load).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issue: Option<String>,
 }
 
 impl ProjectView {
@@ -67,6 +73,30 @@ impl ProjectView {
                 .collect(),
             parked: rm.parked.iter().map(|p| p.name.clone()).collect(),
             cost: None,
+            has_roadmap: true,
+            issue: None,
+        }
+    }
+
+    /// A placeholder view for a registered repo whose roadmap.yaml is
+    /// missing or invalid. `issue` is `None` for "no roadmap yet".
+    pub fn placeholder(p: &registry::RegisteredProject, issue: Option<String>) -> Self {
+        ProjectView {
+            name: p.name.clone(),
+            slug: p.slug.clone(),
+            repo: p.repo.clone().unwrap_or_default(),
+            repo_path: p.repo_path.clone(),
+            maturity: p.maturity.clone(),
+            progress: ProgressView {
+                done: 0,
+                total: 0,
+                percent: 0.0,
+            },
+            phases: Vec::new(),
+            parked: Vec::new(),
+            cost: None,
+            has_roadmap: false,
+            issue,
         }
     }
 }
@@ -104,14 +134,18 @@ pub fn portfolio(conn: &Connection) -> Result<Vec<ProjectView>, Error> {
     let mut views = Vec::with_capacity(projects.len());
     for p in &projects {
         let path = std::path::Path::new(&p.repo_path).join("roadmap.yaml");
-        match parser::load(&path) {
-            Ok(rm) => {
-                let mut view = ProjectView::from_roadmap(&rm, &p.repo_path);
-                view.cost = cost(conn, &p.slug)?;
-                views.push(view);
+        // Missing roadmap -> placeholder ("no roadmap yet"); present but
+        // invalid -> placeholder carrying the reason; valid -> full view.
+        let mut view = if !path.exists() {
+            ProjectView::placeholder(p, None)
+        } else {
+            match parser::load(&path) {
+                Ok(rm) => ProjectView::from_roadmap(&rm, &p.repo_path),
+                Err(e) => ProjectView::placeholder(p, Some(e.to_string())),
             }
-            Err(e) => eprintln!("warning: skipping {} — {e}", p.name),
-        }
+        };
+        view.cost = cost(conn, &p.slug)?;
+        views.push(view);
     }
     Ok(views)
 }

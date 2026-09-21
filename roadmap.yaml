@@ -91,7 +91,7 @@ phases:
 
   - id: 5
     name: Token & cost ledger
-    status: in_progress
+    status: done
     goal: >
       Per-project token usage and cost - ingested, not re-instrumented.
     tasks:
@@ -105,13 +105,15 @@ phases:
 
   - id: 6
     name: Working-tool cutline
-    status: todo
+    status: in_progress
     goal: >
       Make it a daily-usable local tool and freeze scope. This is
       the maturity gate, not a feature phase.
     tasks:
       - Manual refresh/ingest control and correct offline cache behaviour
       - Empty states for missing roadmaps / repos / cost data
+      - Friendlier onboarding - `add` on a repo without roadmap.yaml registers a placeholder card instead of erroring
+      - "`scaffold <repo>` emits an agent-ready prompt to generate that repo's roadmap.yaml (the tool writes nothing into other repos)"
       - Single-command launch
     exit_criteria: >
       You use it for a week to check where your projects stand.

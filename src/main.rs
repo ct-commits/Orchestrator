@@ -27,6 +27,7 @@ fn main() -> ExitCode {
         "report" => cmd_report(rest),
         "ingest" => cmd_ingest(rest.first().map(String::as_str)),
         "cost" => cmd_cost(rest),
+        "scaffold" => cmd_scaffold(rest.first().map(String::as_str)),
         "-h" | "--help" | "help" => {
             print_usage();
             Ok(())
@@ -69,12 +70,43 @@ fn cmd_show(path: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
-/// Register a project by the path to a repo that contains a roadmap.yaml.
+/// Register a project by repo path. If the repo has a valid roadmap.yaml,
+/// register it fully; if it has none, register a placeholder and point the
+/// user at `scaffold`; if it has an invalid one, refuse so they fix it.
 fn cmd_add(path: Option<&str>) -> Result<(), String> {
     let repo_path = path.ok_or("usage: orchestrator add <repo-path>")?;
-    let (canonical, roadmap) = load_repo(repo_path)?;
-
+    let canonical = canonical_path(repo_path)?;
+    let roadmap_file = roadmap_path(&canonical);
     let conn = open_registry()?;
+
+    if !roadmap_file.exists() {
+        // Friendlier onboarding: register a placeholder rather than erroring.
+        let dir_name = Path::new(&canonical)
+            .file_name()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "project".into());
+        let slug = orchestrator::scaffold::slugify(&dir_name);
+        let repo = git_remote(&canonical);
+        registry::upsert_project(
+            &conn,
+            &registry::UpsertProject {
+                slug: &slug,
+                name: &dir_name,
+                repo: repo.as_deref(),
+                repo_path: &canonical,
+                maturity: "unknown",
+                created: None,
+            },
+        )
+        .map_err(|e| e.to_string())?;
+        println!("registered {dir_name} ({slug}) at {canonical}");
+        println!("  no roadmap.yaml yet — generate one with:");
+        println!("      orchestrator scaffold \"{canonical}\"");
+        return Ok(());
+    }
+
+    // Present but must be valid — refuse a broken roadmap so it gets fixed.
+    let roadmap = parser::load(&roadmap_file).map_err(|e| e.to_string())?;
     let p = &roadmap.project;
     registry::upsert_project(
         &conn,
@@ -90,6 +122,20 @@ fn cmd_add(path: Option<&str>) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     println!("registered {} ({}) at {}", p.name, p.slug, canonical);
+    Ok(())
+}
+
+/// Print an agent-ready prompt that gets a coding agent to write
+/// roadmap.yaml for the repo. Orchestrator writes nothing itself.
+fn cmd_scaffold(path: Option<&str>) -> Result<(), String> {
+    let repo_path = path.ok_or("usage: orchestrator scaffold <repo-path>")?;
+    let canonical = canonical_path(repo_path)?;
+
+    if roadmap_path(&canonical).exists() {
+        eprintln!("note: {canonical}\\roadmap.yaml already exists — this prompt will overwrite it.");
+    }
+    let repo = git_remote(&canonical);
+    print!("{}", orchestrator::scaffold::prompt(&canonical, repo.as_deref()));
     Ok(())
 }
 
@@ -225,11 +271,12 @@ fn cmd_cost(args: &[String]) -> Result<(), String> {
 
 const USAGE: &str = "\
 usage:
-  orchestrator show   [roadmap.yaml]              parse one roadmap, print phases + progress
-  orchestrator add    <repo-path>                 register a repo that contains roadmap.yaml
-  orchestrator report [--out <file>]              emit a static HTML portfolio report
-  orchestrator ingest [slug]                      fetch delivery history (gh/git) into the cache
-  orchestrator cost   --import <export.json>      ingest a CodeBurn JSON export into the cost ledger";
+  orchestrator show     [roadmap.yaml]            parse one roadmap, print phases + progress
+  orchestrator add      <repo-path>               register a repo (placeholder if it has no roadmap.yaml)
+  orchestrator scaffold <repo-path>               print an agent prompt to generate a repo's roadmap.yaml
+  orchestrator report   [--out <file>]            emit a static HTML portfolio report
+  orchestrator ingest   [slug]                    fetch delivery history (gh/git) into the cache
+  orchestrator cost     --import <export.json>    ingest a CodeBurn JSON export into the cost ledger";
 
 fn print_usage() {
     println!("{USAGE}");
@@ -239,12 +286,27 @@ fn roadmap_path(repo_path: &str) -> PathBuf {
     Path::new(repo_path).join("roadmap.yaml")
 }
 
-/// Canonicalize a repo path and parse its roadmap.yaml.
-fn load_repo(repo_path: &str) -> Result<(String, Roadmap), String> {
+/// Canonicalize a path and drop Windows' `\\?\` verbatim prefix so stored
+/// and displayed paths stay clean.
+fn canonical_path(repo_path: &str) -> Result<String, String> {
     let canonical = std::fs::canonicalize(repo_path)
         .map_err(|e| format!("no such repo path '{repo_path}': {e}"))?;
-    let roadmap = parser::load(canonical.join("roadmap.yaml")).map_err(|e| e.to_string())?;
-    Ok((canonical.to_string_lossy().into_owned(), roadmap))
+    let s = canonical.to_string_lossy();
+    Ok(s.strip_prefix(r"\\?\").unwrap_or(&s).to_string())
+}
+
+/// Best-effort `owner/name` from the repo's `origin` remote; `None` if not
+/// a git repo or no origin.
+fn git_remote(repo_path: &str) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .args(["-C", repo_path, "remote", "get-url", "origin"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&out.stdout);
+    orchestrator::scaffold::parse_remote(&url)
 }
 
 fn open_registry() -> Result<rusqlite::Connection, String> {

@@ -85,33 +85,48 @@
         <button class="card" onclick={() => openDetail(p)}>
           <div class="card-head">
             <h2>{p.name}</h2>
-            <span class="badge badge-{p.maturity}">{p.maturity}</span>
-          </div>
-          <p class="repo">{p.repo}</p>
-          <div
-            class="bar"
-            role="img"
-            aria-label="{p.progress.done} of {p.progress.total} phases done"
-          >
-            <div class="bar-fill" style="width:{Math.round(p.progress.percent)}%"></div>
-          </div>
-          <p class="prog">
-            {p.progress.done}/{p.progress.total} phases · {Math.round(p.progress.percent)}%
-            {#if p.cost}
-              <span class="cost-chip"
-                >${p.cost.cost_usd.toFixed(2)} · {fmtTokens(tokenTotal(p.cost.tokens))} tok</span
-              >
+            {#if p.has_roadmap}
+              <span class="badge badge-{p.maturity}">{p.maturity}</span>
+            {:else}
+              <span class="badge badge-none">no roadmap</span>
             {/if}
-          </p>
-          <ol class="phases">
-            {#each p.phases as phase (phase.id)}
-              <li class="ph ph-{phase.status}">
-                <span class="dot">{markers[phase.status] ?? "·"}</span>{phase.name}
-              </li>
-            {/each}
-          </ol>
-          {#if p.parked.length > 0}
-            <p class="parked">Parked: {p.parked.join(", ")}</p>
+          </div>
+          <p class="repo">{p.repo || p.repo_path}</p>
+          {#if p.has_roadmap}
+            <div
+              class="bar"
+              role="img"
+              aria-label="{p.progress.done} of {p.progress.total} phases done"
+            >
+              <div class="bar-fill" style="width:{Math.round(p.progress.percent)}%"></div>
+            </div>
+            <p class="prog">
+              {p.progress.done}/{p.progress.total} phases · {Math.round(p.progress.percent)}%
+              {#if p.cost}
+                <span class="cost-chip"
+                  >${p.cost.cost_usd.toFixed(2)} · {fmtTokens(tokenTotal(p.cost.tokens))} tok</span
+                >
+              {/if}
+            </p>
+            <ol class="phases">
+              {#each p.phases as phase (phase.id)}
+                <li class="ph ph-{phase.status}">
+                  <span class="dot">{markers[phase.status] ?? "·"}</span>{phase.name}
+                </li>
+              {/each}
+            </ol>
+            {#if p.parked.length > 0}
+              <p class="parked">Parked: {p.parked.join(", ")}</p>
+            {/if}
+          {:else}
+            <p class="placeholder-note">No roadmap yet — click to scaffold one.</p>
+            {#if p.cost}
+              <p class="prog">
+                <span class="cost-chip"
+                  >${p.cost.cost_usd.toFixed(2)} · {fmtTokens(tokenTotal(p.cost.tokens))} tok</span
+                >
+              </p>
+            {/if}
           {/if}
         </button>
       {/each}
@@ -139,13 +154,22 @@
 
       <section class="detail-section">
         <h3>Phases</h3>
-        <ol class="phases">
-          {#each selected.phases as phase (phase.id)}
-            <li class="ph ph-{phase.status}">
-              <span class="dot">{markers[phase.status] ?? "·"}</span>{phase.name}
-            </li>
-          {/each}
-        </ol>
+        {#if selected.has_roadmap}
+          <ol class="phases">
+            {#each selected.phases as phase (phase.id)}
+              <li class="ph ph-{phase.status}">
+                <span class="dot">{markers[phase.status] ?? "·"}</span>{phase.name}
+              </li>
+            {/each}
+          </ol>
+        {:else}
+          <p class="muted">No <code>roadmap.yaml</code> yet. Generate one with a coding agent:</p>
+          <pre class="cmd">orchestrator scaffold "{selected.repo_path}"</pre>
+          <p class="muted">
+            That prints a prompt to paste into Claude Code / Codex; the agent writes the file.
+          </p>
+          {#if selected.issue}<pre class="err">roadmap error: {selected.issue}</pre>{/if}
+        {/if}
       </section>
 
       <section class="detail-section">
