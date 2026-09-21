@@ -35,10 +35,9 @@ fn returns_the_correct_phase_list() {
         ]
     );
 
-    // Ids are sequential 1..=6 and Phase 1 is the one in progress.
+    // Ids are sequential 1..=6.
     let ids: Vec<i64> = roadmap.phases.iter().map(|p| p.id).collect();
     assert_eq!(ids, [1, 2, 3, 4, 5, 6]);
-    assert_eq!(roadmap.phases[0].status, Status::InProgress);
 }
 
 #[test]
@@ -46,10 +45,16 @@ fn computes_progress_correctly() {
     let roadmap = parser::parse_str(OWN_ROADMAP).unwrap();
     let prog = roadmap.progress();
 
-    // Nothing is `done` yet: 0 of 6 committed phases.
-    assert_eq!(prog.done, 0);
+    // Consistent with the live phase list, so this doesn't break each time
+    // a phase is completed: done == phases marked done, total == all phases.
+    let expected_done = roadmap
+        .phases
+        .iter()
+        .filter(|p| p.status == Status::Done)
+        .count();
+    assert_eq!(prog.done, expected_done);
     assert_eq!(prog.total, 6);
-    assert_eq!(prog.percent, 0.0);
+    assert_eq!(prog.percent, (expected_done as f64 / 6.0) * 100.0);
 }
 
 #[test]
