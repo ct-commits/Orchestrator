@@ -15,5 +15,6 @@
 pub mod model;
 pub mod parser;
 pub mod registry;
+pub mod report;
 
 pub use model::{Maturity, Parked, Phase, Progress, Project, Roadmap, Status};

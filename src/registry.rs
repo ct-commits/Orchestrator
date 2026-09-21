@@ -47,6 +47,73 @@ pub enum Error {
     Sqlite(#[from] rusqlite::Error),
 }
 
+/// A project as stored in the registry. Identity + where to read its
+/// `roadmap.yaml`; the roadmap itself stays the source of truth.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisteredProject {
+    pub id: i64,
+    pub slug: String,
+    pub name: String,
+    pub repo: Option<String>,
+    pub repo_path: String,
+    pub maturity: String,
+    pub created: Option<String>,
+}
+
+/// Values written when registering (or re-registering) a project. Borrowed
+/// so the caller keeps ownership of the parsed roadmap.
+#[derive(Debug, Clone)]
+pub struct UpsertProject<'a> {
+    pub slug: &'a str,
+    pub name: &'a str,
+    pub repo: Option<&'a str>,
+    pub repo_path: &'a str,
+    pub maturity: &'a str,
+    pub created: Option<&'a str>,
+}
+
+/// Register a project, or update it in place if its `slug` already exists.
+/// Returns the row id.
+pub fn upsert_project(conn: &Connection, p: &UpsertProject) -> Result<i64, Error> {
+    conn.execute(
+        "INSERT INTO project (slug, name, repo, repo_path, maturity, created)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(slug) DO UPDATE SET
+             name = excluded.name,
+             repo = excluded.repo,
+             repo_path = excluded.repo_path,
+             maturity = excluded.maturity,
+             created = excluded.created",
+        rusqlite::params![p.slug, p.name, p.repo, p.repo_path, p.maturity, p.created],
+    )?;
+    let id: i64 = conn.query_row(
+        "SELECT id FROM project WHERE slug = ?1",
+        [p.slug],
+        |row| row.get(0),
+    )?;
+    Ok(id)
+}
+
+/// Every registered project, ordered by name for a stable report.
+pub fn list_projects(conn: &Connection) -> Result<Vec<RegisteredProject>, Error> {
+    let mut stmt = conn.prepare(
+        "SELECT id, slug, name, repo, repo_path, maturity, created
+         FROM project ORDER BY name COLLATE NOCASE",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(RegisteredProject {
+            id: row.get(0)?,
+            slug: row.get(1)?,
+            name: row.get(2)?,
+            repo: row.get(3)?,
+            repo_path: row.get(4)?,
+            maturity: row.get(5)?,
+            created: row.get(6)?,
+        })
+    })?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Error::from)
+}
+
 /// Open (creating if needed) the registry at `path` and ensure the schema
 /// is present. Enables foreign-key enforcement, which SQLite leaves off by
 /// default.

@@ -16,6 +16,18 @@ pub enum Maturity {
     Production,
 }
 
+impl Maturity {
+    /// The lowercase label used in `roadmap.yaml` and stored in the registry.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Maturity::Idea => "idea",
+            Maturity::Prototype => "prototype",
+            Maturity::Working => "working",
+            Maturity::Production => "production",
+        }
+    }
+}
+
 /// A phase's lifecycle state. Only `Done` counts toward progress %.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
