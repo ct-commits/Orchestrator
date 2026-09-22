@@ -125,7 +125,7 @@ of truth. In short:
 1. **Schema & parser** — lock the schema + parser; compute progress. *(done)*
 2. **Static portfolio report** — one command emits a static HTML portfolio view. *(done)*
 3. **Tauri shell** — the same read model as a real local window. *(done)*
-4. **Git & GitHub ingestion** — merged PRs, resolved blockers, repo link. *(done)*
+4. **Git & GitHub ingestion** — merged/open PRs, recent commits, last activity, repo link. *(done)*
 5. **Token & cost ledger** — per-project usage/cost from CodeBurn. *(done)*
 6. **Working-tool cutline** — daily-usable, scope frozen; the maturity gate. *(in progress)*
 
@@ -140,3 +140,12 @@ of truth. In short:
 
 See [`AGENTS.md`](AGENTS.md) for working conventions and
 [`docs/architecture.md`](docs/architecture.md) for the full rationale.
+
+## License
+
+Copyright © 2026 Caj Tidemandsen. Licensed under the
+[GNU AGPL-3.0](LICENSE) — free and open source: use, study, modify, and
+share it freely. If you run a modified version as a network service, the
+AGPL requires you to offer that modified source to its users. The
+copyright holder may also make it available under separate commercial
+terms.
