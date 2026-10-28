@@ -5,6 +5,7 @@
   let projects = $state([]);
   let error = $state(null);
   let loading = $state(true);
+  let syncing = $state(false);
 
   // Detail pane state
   let selected = $state(null);
@@ -62,9 +63,30 @@
     }
   }
 
+  // Fetch fresh data from GitHub (network), then show it. Distinct from
+  // Reload, which only re-reads the local cache.
+  async function sync() {
+    syncing = true;
+    error = null;
+    try {
+      projects = await invoke("sync");
+    } catch (e) {
+      error = String(e);
+    } finally {
+      syncing = false;
+    }
+  }
+
   onMount(load);
 
   const markers = { done: "✓", in_progress: "▸", blocked: "✗", todo: "·" };
+  // Oldest fetch across projects → how stale the view is.
+  const oldestSynced = $derived(
+    projects
+      .map((p) => p.last_synced)
+      .filter(Boolean)
+      .sort()[0] ?? null,
+  );
   const tokenTotal = (t) =>
     t ? t.input + t.output + t.reasoning + t.cache_write + t.cache_read : 0;
   const fmtNum = (n) => n.toLocaleString();
@@ -89,9 +111,16 @@
 <header class="top">
   <h1>Portfolio</h1>
   <p class="subtitle">
-    {#if loading}Loading…{:else if error}Could not load{:else}{subtitle}{/if}
+    {#if loading}Loading…{:else if error}Could not load{:else}{subtitle}{oldestSynced ? ` · synced ${fmtAgo(oldestSynced)}` : ""}{/if}
   </p>
-  <button class="refresh" onclick={load} disabled={loading}>Refresh</button>
+  <div class="head-actions">
+    <button onclick={sync} disabled={syncing || loading} title="Fetch fresh data from GitHub">
+      {syncing ? "Syncing…" : "Sync"}
+    </button>
+    <button class="ghost" onclick={load} disabled={loading || syncing} title="Re-read local cache (no fetch)">
+      Reload
+    </button>
+  </div>
 </header>
 
 <main>

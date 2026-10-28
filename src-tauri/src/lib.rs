@@ -27,6 +27,16 @@ fn get_delivery(slug: String) -> Result<Option<DeliverySummary>, String> {
     orchestrator::view::delivery(&conn, &slug).map_err(|e| e.to_string())
 }
 
+/// Fetch fresh delivery data for every registered project (reaching the
+/// network via `gh`), cache it, and return the refreshed portfolio. This
+/// is the Sync button — a manual, user-initiated refresh, not a loop.
+#[tauri::command]
+fn sync() -> Result<Vec<ProjectView>, String> {
+    let conn = orchestrator::open_default_registry().map_err(|e| e.to_string())?;
+    orchestrator::sync::ingest_all(&conn).map_err(|e| e.to_string())?;
+    orchestrator::view::portfolio(&conn).map_err(|e| e.to_string())
+}
+
 /// Unregister a project (and its cached data) by slug. The project's own
 /// roadmap.yaml on disk is untouched. Returns true if a row was removed.
 /// This is the app's one write path — user-initiated portfolio management,
@@ -43,6 +53,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_projects,
             get_delivery,
+            sync,
             remove_project
         ])
         .run(tauri::generate_context!())

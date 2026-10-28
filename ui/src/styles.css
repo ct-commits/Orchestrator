@@ -61,10 +61,15 @@ body {
   margin: 0;
   color: var(--muted);
 }
-.refresh {
+.head-actions {
   grid-row: 1 / span 2;
   grid-column: 2;
   align-self: center;
+  display: flex;
+  gap: 8px;
+}
+.head-actions .ghost {
+  color: var(--muted);
 }
 button {
   font: inherit;
