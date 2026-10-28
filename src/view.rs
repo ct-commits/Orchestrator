@@ -43,6 +43,10 @@ pub struct ProjectView {
     /// an at-a-glance freshness signal. `None` until delivery is ingested.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_activity: Option<String>,
+    /// When delivery was last fetched into the cache (the delivery cache's
+    /// fetched_at) — lets the UI show how stale the data is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_synced: Option<String>,
     /// False for a registered repo that has no (or an invalid) roadmap.yaml
     /// yet — the app renders it as a placeholder "run scaffold" card.
     pub has_roadmap: bool,
@@ -78,6 +82,7 @@ impl ProjectView {
             parked: rm.parked.iter().map(|p| p.name.clone()).collect(),
             cost: None,
             last_activity: None,
+            last_synced: None,
             has_roadmap: true,
             issue: None,
         }
@@ -101,6 +106,7 @@ impl ProjectView {
             parked: Vec::new(),
             cost: None,
             last_activity: None,
+            last_synced: None,
             has_roadmap: false,
             issue,
         }
@@ -151,7 +157,10 @@ pub fn portfolio(conn: &Connection) -> Result<Vec<ProjectView>, Error> {
             }
         };
         view.cost = cost(conn, &p.slug)?;
-        view.last_activity = delivery(conn, &p.slug)?.and_then(|d| d.last_activity);
+        if let Some(d) = delivery(conn, &p.slug)? {
+            view.last_activity = d.last_activity;
+            view.last_synced = Some(d.fetched_at);
+        }
         views.push(view);
     }
     Ok(views)

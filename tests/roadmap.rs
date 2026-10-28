@@ -561,6 +561,13 @@ fn registry_creates_missing_parent_dirs() {
 }
 
 #[test]
+fn sync_ingest_all_on_empty_registry_is_zero() {
+    // No projects -> nothing to fetch, no network touched.
+    let conn = registry::open_in_memory().unwrap();
+    assert_eq!(orchestrator::sync::ingest_all(&conn).unwrap(), 0);
+}
+
+#[test]
 fn remove_project_deletes_row_and_cascades_cache() {
     let conn = registry::open_in_memory().unwrap();
     registry::upsert_project(

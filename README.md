@@ -117,6 +117,17 @@ registry.db`, e.g. `%APPDATA%` on Windows), so the CLI and the app share
 it wherever they run; override with `ORCHESTRATOR_DB`. Run the tests with
 `cargo test`.
 
+### Keeping data fresh
+
+Delivery data is a cache that only updates when you ingest — the app's
+**Sync** button fetches fresh data from GitHub (its **Reload** button just
+re-reads the local cache), and the header shows how long ago the data was
+synced. To refresh automatically, register a daily Scheduled Task:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\schedule-ingest.ps1
+```
+
 ## Roadmap
 
 Committed scope lives in [`roadmap.yaml`](roadmap.yaml) and is the source
